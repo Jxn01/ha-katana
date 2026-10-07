@@ -37,7 +37,9 @@ FRAME_SCHEMA = vol.Schema(
 
 
 class StreamTargetError(LookupError):
-    pass
+    def __init__(self, message: str, translation_key: str) -> None:
+        super().__init__(message)
+        self.translation_key = translation_key
 
 
 @callback
@@ -46,9 +48,9 @@ def _stream_for(hass: HomeAssistant, entry_id: str | None) -> StreamController:
     if entry_id is not None:
         entries = [e for e in entries if e.entry_id == entry_id]
     if len(entries) != 1:
-        raise StreamTargetError(
-            "no loaded Katana entry" if not entries else "several Katana entries: pass config_entry_id"
-        )
+        if not entries:
+            raise StreamTargetError("no loaded Katana entry", "no_loaded_entry")
+        raise StreamTargetError("several Katana entries: pass config_entry_id", "several_entries")
     return entries[0].runtime_data.stream
 
 
@@ -85,7 +87,9 @@ def async_setup_api(hass: HomeAssistant) -> None:
         try:
             stream = _stream_for(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
         except StreamTargetError as err:
-            raise ServiceValidationError(str(err)) from err
+            raise ServiceValidationError(
+                str(err), translation_domain=DOMAIN, translation_key=err.translation_key
+            ) from err
         stream.handle_frame(call.data[ATTR_RGB])
 
     hass.services.async_register(DOMAIN, SERVICE_STREAM_FRAME, handle_stream_frame, schema=FRAME_SCHEMA)

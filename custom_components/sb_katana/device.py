@@ -26,7 +26,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from . import captured
 from . import protocol as p
-from .const import RECONNECT_BACKOFF, REPLY_TIMEOUT
+from .const import DOMAIN, RECONNECT_BACKOFF, REPLY_TIMEOUT
 from .families import FAMILIES, is_allowed
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,7 +35,22 @@ StoreValues = dict[tuple[int, int], float | int]
 
 
 class KatanaCommandError(HomeAssistantError):
-    """A write was refused, rejected by the soundbar, or not answered."""
+    """A write was refused, rejected by the soundbar, or not answered.
+
+    ``str()`` stays the English ``message`` (logs, tests); the UI shows the
+    ``translation_key`` text from ``strings.json`` -> ``exceptions`` in the user's
+    language, with ``placeholders`` filled in.
+    """
+
+    def __init__(self, message: str, translation_key: str = "command_failed", **placeholders: object) -> None:
+        if translation_key == "command_failed":
+            placeholders = {"message": message, **placeholders}
+        super().__init__(
+            message,
+            translation_domain=DOMAIN,
+            translation_key=translation_key,
+            translation_placeholders={k: str(v) for k, v in placeholders.items()},
+        )
 
 
 class KatanaUnconfirmedError(KatanaCommandError):
@@ -379,18 +394,23 @@ class KatanaDevice:
     async def _exchange(self, cmd: p.Command) -> p.Frame | p.Ack:
         """Send one frame and wait for its answer. The caller holds ``_io_lock``."""
         if not self._transport.connected:
-            raise KatanaCommandError("soundbar not connected")
+            raise KatanaCommandError("soundbar not connected", "not_connected")
         future: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending = _Pending(cmd, future)
         try:
             await self._transport.write(cmd.frame)
             result = await asyncio.wait_for(future, REPLY_TIMEOUT)
         except TimeoutError as err:
-            raise KatanaCommandError(f"no answer to {cmd.frame.hex()}") from err
+            raise KatanaCommandError(f"no answer to {cmd.frame.hex()}", "no_answer", frame=cmd.frame.hex()) from err
         finally:
             self._pending = None
         if isinstance(result, p.Ack) and result.status != 0:
-            raise KatanaRejectedError(f"soundbar rejected {cmd.frame.hex()} with status {result.status:#04x}")
+            raise KatanaRejectedError(
+                f"soundbar rejected {cmd.frame.hex()} with status {result.status:#04x}",
+                "rejected",
+                frame=cmd.frame.hex(),
+                status=f"{result.status:#04x}",
+            )
         return result
 
     async def request(self, cmd: p.Command) -> p.Frame:
@@ -398,18 +418,23 @@ class KatanaDevice:
         async with self._io_lock:
             result = await self._exchange(cmd)
         if not isinstance(result, p.Frame):
-            raise KatanaCommandError(f"expected a reply to {cmd.frame.hex()}")
+            raise KatanaCommandError(f"expected a reply to {cmd.frame.hex()}", "no_reply", frame=cmd.frame.hex())
         return result
 
     def check_gate(self, family: str) -> None:
         if not self.firmware_ok:
             raise KatanaCommandError(
-                f"firmware {self.state.firmware!r} is not the tested {p.TESTED_FIRMWARE}; writes are disabled"
+                f"firmware {self.state.firmware!r} is not the tested {p.TESTED_FIRMWARE}; writes are disabled",
+                "untested_firmware",
+                found=self.state.firmware or "?",
+                tested=p.TESTED_FIRMWARE,
             )
         if not is_allowed(family, self.allow_unconfirmed):
             raise KatanaUnconfirmedError(
                 f"'{FAMILIES[family].label}' has not been confirmed live yet. Turn on 'Allow unconfirmed "
-                "controls' in the integration options to test it (see the morning checklist)."
+                "controls' in the integration options to test it (see the morning checklist).",
+                "unconfirmed",
+                control=FAMILIES[family].label,
             )
 
     async def send(
@@ -704,7 +729,9 @@ class KatanaDevice:
         if self.state.output is None:
             # Speakers and Headphones have separate settings; writing the wrong side
             # while showing it as applied would be worse than refusing.
-            raise KatanaCommandError("the current output is unknown, so it is unclear which side to change")
+            raise KatanaCommandError(
+                "the current output is unknown, so it is unclear which side to change", "output_unknown"
+            )
         sub = self.state.store_sub
         await self.send(
             family,
@@ -728,7 +755,7 @@ class KatanaDevice:
 
     async def eq_preset(self, name: str) -> None:
         if name not in captured.EQ_PRESETS:
-            raise KatanaCommandError(f"unknown EQ preset {name!r}")
+            raise KatanaCommandError(f"unknown EQ preset {name!r}", "unknown_eq_preset", name=name)
         await self.send(
             "eq_preset",
             p.captured_sequence(captured.EQ_PRESETS[name]),
@@ -769,7 +796,7 @@ class KatanaDevice:
 
     async def light_preset(self, name: str) -> None:
         if name not in captured.LIGHTING_PRESETS:
-            raise KatanaCommandError(f"unknown lighting preset {name!r}")
+            raise KatanaCommandError(f"unknown lighting preset {name!r}", "unknown_light_preset", name=name)
         await self.send(
             "light_preset",
             p.captured_sequence(captured.LIGHTING_PRESETS[name]),
@@ -793,11 +820,13 @@ class KatanaDevice:
     async def set_eq_band(self, band: int, gain: float) -> None:
         """Change one band. The app always sends all ten, so the other nine must be known."""
         if self.state.output is None:
-            raise KatanaCommandError("the current output is unknown, so it is unclear which side to change")
+            raise KatanaCommandError(
+                "the current output is unknown, so it is unclear which side to change", "output_unknown"
+            )
         sub = self.state.store_sub
         current = self.state.eq_values.get(sub, {})
         if not set(p.EQ_BANDS) <= set(current):
-            raise KatanaCommandError("the current EQ bands are unknown; re-read state first")
+            raise KatanaCommandError("the current EQ bands are unknown; re-read state first", "eq_bands_unknown")
         gain = max(-p.EQ_GAIN_LIMIT, min(p.EQ_GAIN_LIMIT, float(gain)))
         gains = [gain if b == band else current[b] for b in p.EQ_BANDS]
         await self.send(
@@ -828,7 +857,7 @@ class KatanaDevice:
             await self.set_dsp_value("mic_eq_preset", p.DSP_MIC_EQ, 0.0)
             return
         if name not in captured.MIC_EQ_PRESETS:
-            raise KatanaCommandError(f"unknown microphone EQ preset {name!r}")
+            raise KatanaCommandError(f"unknown microphone EQ preset {name!r}", "unknown_mic_eq_preset", name=name)
         cmds = [p.dsp_write(p.DSP_MIC_EQ, 1.0), *p.captured_sequence((captured.MIC_EQ_PRESETS[name],))]
         await self.send(
             "mic_eq_preset",

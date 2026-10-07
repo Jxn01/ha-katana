@@ -1,0 +1,197 @@
+{
+  "entity": {
+    "light": {
+      "lighting": {
+        "default": "mdi:led-strip-variant",
+        "state": {
+          "off": "mdi:led-strip-variant-off"
+        }
+      }
+    },
+    "switch": {
+      "screen_sync": {
+        "default": "mdi:television-ambient-light",
+        "state": {
+          "off": "mdi:television-off"
+        }
+      },
+      "hold_connection": {
+        "default": "mdi:bluetooth-connect",
+        "state": {
+          "off": "mdi:bluetooth-off"
+        }
+      },
+      "scout_mode": {
+        "default": "mdi:shoe-print"
+      },
+      "auto_switch_tv": {
+        "default": "mdi:video-input-hdmi"
+      },
+      "equalizer": {
+        "default": "mdi:equalizer",
+        "state": {
+          "off": "mdi:equalizer-outline"
+        }
+      },
+      "surround": {
+        "default": "mdi:surround-sound"
+      },
+      "crystalizer": {
+        "default": "mdi:diamond-stone"
+      },
+      "smart_volume": {
+        "default": "mdi:volume-equal"
+      },
+      "dialog_plus": {
+        "default": "mdi:account-voice",
+        "state": {
+          "off": "mdi:account-voice-off"
+        }
+      },
+      "mic_smart_volume": {
+        "default": "mdi:microphone-settings"
+      },
+      "mic_equalizer": {
+        "default": "mdi:tune-vertical"
+      },
+      "mic_focus": {
+        "default": "mdi:image-filter-center-focus"
+      },
+      "energy_saving": {
+        "default": "mdi:leaf",
+        "state": {
+          "off": "mdi:leaf-off"
+        }
+      },
+      "cec_link": {
+        "default": "mdi:link-variant",
+        "state": {
+          "off": "mdi:link-variant-off"
+        }
+      }
+    },
+    "select": {
+      "input": {
+        "default": "mdi:import",
+        "state": {
+          "tv": "mdi:television",
+          "usb_audio": "mdi:usb",
+          "optical": "mdi:toslink",
+          "aux": "mdi:audio-input-stereo-minijack",
+          "bluetooth": "mdi:bluetooth-audio"
+        }
+      },
+      "sound_mode": {
+        "default": "mdi:music-box-multiple"
+      },
+      "output": {
+        "default": "mdi:speaker",
+        "state": {
+          "speakers": "mdi:speaker",
+          "headphones": "mdi:headphones"
+        }
+      },
+      "decoder": {
+        "default": "mdi:dolby",
+        "state": {
+          "night": "mdi:weather-night"
+        }
+      },
+      "eq_preset": {
+        "default": "mdi:tune-variant"
+      },
+      "smart_volume_mode": {
+        "default": "mdi:volume-equal",
+        "state": {
+          "loud": "mdi:volume-high",
+          "night": "mdi:weather-night"
+        }
+      },
+      "mic_priority": {
+        "default": "mdi:microphone-question",
+        "state": {
+          "headset_microphone": "mdi:headset",
+          "microphone_array": "mdi:microphone-variant"
+        }
+      },
+      "mic_eq_preset": {
+        "default": "mdi:tune-vertical-variant"
+      },
+      "auto_standby": {
+        "default": "mdi:power-sleep",
+        "state": {
+          "never": "mdi:sleep-off"
+        }
+      },
+      "display": {
+        "default": "mdi:brightness-6",
+        "state": {
+          "bright": "mdi:brightness-7",
+          "dark": "mdi:brightness-4",
+          "off": "mdi:monitor-off"
+        }
+      }
+    },
+    "number": {
+      "surround_level": {
+        "default": "mdi:surround-sound"
+      },
+      "crystalizer_level": {
+        "default": "mdi:diamond-stone"
+      },
+      "dialog_plus_level": {
+        "default": "mdi:account-voice"
+      },
+      "smart_volume_level": {
+        "default": "mdi:volume-equal"
+      },
+      "line_in_level": {
+        "default": "mdi:audio-input-stereo-minijack"
+      },
+      "spdif_in_level": {
+        "default": "mdi:toslink"
+      },
+      "microphone_level": {
+        "default": "mdi:microphone"
+      },
+      "headphones_level": {
+        "default": "mdi:headphones"
+      },
+      "what_u_hear_level": {
+        "default": "mdi:ear-hearing"
+      },
+      "subwoofer": {
+        "default": "mdi:speaker"
+      },
+      "eq_band": {
+        "default": "mdi:tune-vertical-variant"
+      },
+      "mic_focus_angle": {
+        "default": "mdi:angle-acute"
+      }
+    },
+    "sensor": {
+      "firmware": {
+        "default": "mdi:chip"
+      }
+    },
+    "binary_sensor": {
+      "screen_sync_receiving": {
+        "default": "mdi:television-off",
+        "state": {
+          "on": "mdi:television-ambient-light"
+        }
+      }
+    },
+    "button": {
+      "reread_state": {
+        "default": "mdi:refresh"
+      }
+    }
+  },
+  "services": {
+    "stream_frame": {
+      "service": "mdi:palette"
+    }
+  }
+}

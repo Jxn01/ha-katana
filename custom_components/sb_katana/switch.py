@@ -15,6 +15,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import KatanaConfigEntry
 from . import protocol as p
+from .const import DOMAIN
 from .device import KatanaCommandError, KatanaDevice
 from .entity import KatanaEntity
 
@@ -184,7 +185,12 @@ class HoldConnectionSwitch(KatanaEntity, SwitchEntity, RestoreEntity):
         try:
             await self._device.start(keep_trying=True)
         except (KatanaCommandError, TimeoutError, OSError) as err:
-            raise HomeAssistantError(f"could not reconnect to the soundbar yet (still trying): {err}") from err
+            raise HomeAssistantError(
+                f"could not reconnect to the soundbar yet (still trying): {err}",
+                translation_domain=DOMAIN,
+                translation_key="reconnect_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
         finally:
             self.async_write_ha_state()
 

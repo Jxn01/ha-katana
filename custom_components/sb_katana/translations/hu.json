@@ -1,0 +1,321 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "bluetooth_confirm": {
+        "description": "Beállítod a(z) {name} ({address}) eszközt Bluetooth-on? A Home Assistant fenntartja a hangprojektor vezérlőkapcsolatát, így amíg ezt teszi, a Creative alkalmazása nem tud csatlakozni (a „Kapcsolat megtartása” kikapcsolásával engedheted be)."
+      },
+      "user": {
+        "data": {
+          "address": "Hangprojektor"
+        },
+        "description": "Válaszd ki a hangprojektor Bluetooth-vezérlőeszközét („Control for MF8400”)."
+      }
+    },
+    "abort": {
+      "already_configured": "Ez a hangprojektor már be van állítva.",
+      "no_devices_found": "Egyetlen csatlakozásra képes Bluetooth-adapter hatótávolságában sincs Katana V2X vezérlőeszköz.",
+      "not_supported": "Ez a Bluetooth-eszköz nem a Katana V2X vezérlőcsatornája."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "allow_unconfirmed": "Meg nem erősített vezérlők engedélyezése",
+          "stream_rate_hz": "Képernyő-szinkron sebessége (írás másodpercenként)",
+          "stream_timeout_s": "Képernyő-szinkron átadása (ennyi másodperc képkocka nélkül kapcsol le a világítás)"
+        },
+        "data_description": {
+          "allow_unconfirmed": "Azokat a vezérlőket, amelyek parancsait a Creative alkalmazásából fejtettük vissza, de még nem erősítetted meg, hogy működnek, az integráció addig elutasítja, amíg ez be nincs kapcsolva. Kapcsold be, ha ki akarod próbálni őket.",
+          "stream_timeout_s": "Legalább 10 mp: a számítógép 5 másodpercenként újraküldi a változatlan színt, így rövidebb átadás mellett villogna a világítás."
+        }
+      }
+    }
+  },
+  "entity": {
+    "light": {
+      "lighting": {
+        "name": "Világítás"
+      }
+    },
+    "switch": {
+      "screen_sync": {
+        "name": "Képernyő-szinkron"
+      },
+      "hold_connection": {
+        "name": "Kapcsolat megtartása"
+      },
+      "scout_mode": {
+        "name": "Scout mód"
+      },
+      "auto_switch_tv": {
+        "name": "Automatikus váltás TV/HDMI-re"
+      },
+      "equalizer": {
+        "name": "Hangszínszabályzó"
+      },
+      "surround": {
+        "name": "Surround"
+      },
+      "crystalizer": {
+        "name": "Crystalizer"
+      },
+      "smart_volume": {
+        "name": "Smart Volume"
+      },
+      "dialog_plus": {
+        "name": "Dialog+"
+      },
+      "mic_smart_volume": {
+        "name": "Mikrofon Smart Volume"
+      },
+      "mic_equalizer": {
+        "name": "Mikrofon-hangszínszabályzó"
+      },
+      "mic_focus": {
+        "name": "Mikrofonfókusz"
+      },
+      "energy_saving": {
+        "name": "Energiatakarékosság"
+      },
+      "cec_link": {
+        "name": "HDMI CEC készenléti összekapcsolás"
+      }
+    },
+    "select": {
+      "output": {
+        "name": "Kimenet",
+        "state": {
+          "speakers": "Hangszórók",
+          "headphones": "Fejhallgató"
+        }
+      },
+      "decoder": {
+        "name": "Dekóder",
+        "state": {
+          "normal": "Normál",
+          "full": "Teljes",
+          "night": "Éjszakai"
+        }
+      },
+      "eq_preset": {
+        "name": "Hangszínszabályzó-előbeállítás"
+      },
+      "smart_volume_mode": {
+        "name": "Smart Volume mód",
+        "state": {
+          "manual": "Kézi",
+          "loud": "Hangos",
+          "night": "Éjszakai"
+        }
+      },
+      "input": {
+        "name": "Bemenet",
+        "state": {
+          "tv": "TV",
+          "usb_audio": "USB-audió",
+          "optical": "Optikai",
+          "aux": "AUX",
+          "bluetooth": "Bluetooth"
+        }
+      },
+      "sound_mode": {
+        "name": "Hangzásmód"
+      },
+      "mic_priority": {
+        "name": "Mikrofonprioritás",
+        "state": {
+          "auto": "Automatikus",
+          "headset_microphone": "Headset-mikrofon",
+          "microphone_array": "Beépített mikrofonsor"
+        }
+      },
+      "mic_eq_preset": {
+        "name": "Mikrofon-hangszínszabályzó",
+        "state": {
+          "off": "Ki",
+          "reduce_bass_harshness_improve_clarity": "Kevesebb basszus és élesség, tisztább hang",
+          "reduce_bass_improve_vocal_and_clarity": "Kevesebb basszus, érthetőbb és tisztább hang",
+          "reduce_harshness_improve_vocal": "Kevesebb élesség, érthetőbb hang",
+          "reduce_bass_improve_vocal": "Kevesebb basszus, érthetőbb hang",
+          "improve_vocal_reduce_harshness": "Érthetőbb hang, kevesebb élesség",
+          "reduce_bass_improve_clarity": "Kevesebb basszus, tisztább hang",
+          "reduce_vocal_improve_bass_and_clarity": "Kevesebb beszédhang, több basszus és tisztább hang",
+          "reduce_harshness_improve_vocal_and_clarity": "Kevesebb élesség, érthetőbb és tisztább hang",
+          "reduce_harshness_improve_clarity": "Kevesebb élesség, tisztább hang",
+          "improve_clarity": "Tisztább hang",
+          "improve_vocal_and_clarity": "Érthetőbb és tisztább hang"
+        }
+      },
+      "auto_standby": {
+        "name": "Automatikus készenlét",
+        "state": {
+          "28_hours": "28 óra",
+          "8_hours": "8 óra",
+          "2_hours": "2 óra",
+          "1_hour": "1 óra",
+          "30_minutes": "30 perc",
+          "never": "Soha"
+        }
+      },
+      "display": {
+        "name": "Kijelző",
+        "state": {
+          "bright": "Fényes",
+          "dark": "Halvány",
+          "off": "Ki"
+        }
+      }
+    },
+    "number": {
+      "surround_level": {
+        "name": "Surround szint"
+      },
+      "crystalizer_level": {
+        "name": "Crystalizer szint"
+      },
+      "dialog_plus_level": {
+        "name": "Dialog+ szint"
+      },
+      "smart_volume_level": {
+        "name": "Smart Volume szint"
+      },
+      "line_in_level": {
+        "name": "Line In szint"
+      },
+      "spdif_in_level": {
+        "name": "SPDIF In szint"
+      },
+      "microphone_level": {
+        "name": "Mikrofonszint"
+      },
+      "headphones_level": {
+        "name": "Fejhallgató-szint"
+      },
+      "what_u_hear_level": {
+        "name": "What U Hear szint"
+      },
+      "subwoofer": {
+        "name": "Mélysugárzó"
+      },
+      "eq_band": {
+        "name": "Hangszínszabályzó {band}"
+      },
+      "mic_focus_angle": {
+        "name": "Mikrofonfókusz szöge"
+      }
+    },
+    "sensor": {
+      "firmware": {
+        "name": "Firmware"
+      }
+    },
+    "binary_sensor": {
+      "screen_sync_receiving": {
+        "name": "Képernyő-szinkron jel"
+      }
+    },
+    "button": {
+      "reread_state": {
+        "name": "Állapot újraolvasása"
+      }
+    }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "A hangprojektor-parancs nem sikerült: {message}"
+    },
+    "not_connected": {
+      "message": "A hangprojektor nincs csatlakoztatva."
+    },
+    "not_in_range": {
+      "message": "A hangprojektor ({address}) nincs csatlakozásra képes Bluetooth-adapter hatótávolságában."
+    },
+    "link_not_ready": {
+      "message": "A hangprojektor Bluetooth-kapcsolata még nem áll készen: {error}"
+    },
+    "frame_too_long": {
+      "message": "A parancs {size} bájtos, több, mint amennyit ez a Bluetooth-kapcsolat elfogad ({limit})."
+    },
+    "write_failed": {
+      "message": "A küldés a hangprojektornak Bluetooth-on nem sikerült: {error}"
+    },
+    "no_answer": {
+      "message": "A hangprojektor nem válaszolt erre a parancsra: {frame}."
+    },
+    "no_reply": {
+      "message": "A hangprojektor nyugtázta a(z) {frame} parancsot, de nem küldött vissza adatot."
+    },
+    "rejected": {
+      "message": "A hangprojektor elutasította a(z) {frame} parancsot (állapot: {status})."
+    },
+    "untested_firmware": {
+      "message": "A hangprojektor {found} firmware-t futtat, de csak a(z) {tested} verzió tesztelt, ezért minden módosítást elutasít. Az olvasás továbbra is működik."
+    },
+    "unconfirmed": {
+      "message": "A(z) „{control}” vezérlő működése ezen a hangprojektoron még nincs megerősítve. Kipróbálásához kapcsold be a „Meg nem erősített vezérlők engedélyezése” beállítást az integráció beállításaiban."
+    },
+    "output_unknown": {
+      "message": "Még nem ismert, hogy a hangszórók vagy a fejhallgató aktív, így nem egyértelmű, melyik oldalt kell módosítani. Olvasd újra az állapotot, és próbáld újra."
+    },
+    "eq_bands_unknown": {
+      "message": "A hangszínszabályzó sávjainak jelenlegi értéke még nem ismert. Olvasd újra az állapotot, és próbáld újra."
+    },
+    "volume_unknown": {
+      "message": "A jelenlegi hangerő még nem ismert. Olvasd újra az állapotot, és próbáld újra."
+    },
+    "unknown_eq_preset": {
+      "message": "Ismeretlen hangszínszabályzó-előbeállítás: {name}."
+    },
+    "unknown_light_preset": {
+      "message": "Ismeretlen fényeffektus: {name}."
+    },
+    "unknown_mic_eq_preset": {
+      "message": "Ismeretlen mikrofon-hangszínszabályzó előbeállítás: {name}."
+    },
+    "unknown_source": {
+      "message": "Ismeretlen bemenet: {source}."
+    },
+    "unknown_sound_mode": {
+      "message": "Ismeretlen hangzásmód: {sound_mode}."
+    },
+    "unknown_option": {
+      "message": "Ismeretlen beállítás: {option}."
+    },
+    "no_loaded_entry": {
+      "message": "Nincs beállított és betöltött Sound Blaster Katana V2X."
+    },
+    "several_entries": {
+      "message": "Több hangprojektor is be van állítva: a config_entry_id mezővel add meg, melyik."
+    },
+    "not_ready": {
+      "message": "A(z) {address} címen lévő hangprojektor nem válaszolt: {error}"
+    },
+    "reconnect_failed": {
+      "message": "Még nem sikerült újracsatlakozni a hangprojektorhoz (tovább próbálkozik): {error}"
+    }
+  },
+  "issues": {
+    "untested_firmware": {
+      "title": "A Katana firmware-e nem a tesztelt verzió",
+      "description": "A hangprojektor a(z) {found} firmware-t jelenti, de az integráció a(z) {tested} verzióra készült. Minden írást elutasít, amíg a parancsokat ezen a firmware-en újra nem ellenőrizzük; az olvasás továbbra is működik. Ne telepíts firmware-frissítést a Creative alkalmazásából, ha továbbra is a Home Assistantból szeretnéd vezérelni."
+    }
+  },
+  "services": {
+    "stream_frame": {
+      "name": "Képernyő-szinkron szín",
+      "description": "Egy képernyő-szinkron szín megjelenítése (a számítógép ehelyett a /api/sb_katana/stream végpontot használja, amely semmit sem rögzít).",
+      "fields": {
+        "rgb": {
+          "name": "Szín",
+          "description": "Vörös, zöld, kék; mindegyik 0–255."
+        },
+        "config_entry_id": {
+          "name": "Hangprojektor",
+          "description": "Csak akkor kell, ha több hangprojektor is be van állítva."
+        }
+      }
+    }
+  }
+}

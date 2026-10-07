@@ -97,7 +97,11 @@ class BleakTransport:
             await bluetooth.async_request_active_scan(self._hass, _ACTIVE_SWEEP_SECONDS)
         ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address, connectable=True)
         if ble_device is None:
-            raise KatanaCommandError(f"soundbar {self._address} is not in range of a connectable Bluetooth adapter")
+            raise KatanaCommandError(
+                f"soundbar {self._address} is not in range of a connectable Bluetooth adapter",
+                "not_in_range",
+                address=self._address,
+            )
         client = await establish_connection(
             BleakClientWithServiceCache,
             ble_device,
@@ -129,17 +133,22 @@ class BleakTransport:
     async def write(self, frame: bytes) -> None:
         client = self._client
         if client is None or not client.is_connected:
-            raise KatanaCommandError("soundbar not connected")
+            raise KatanaCommandError("soundbar not connected", "not_connected")
         try:
             limit = self.write_limit
         except BleakError as err:
-            raise KatanaCommandError(f"BLE link not ready: {err}") from err
+            raise KatanaCommandError(f"BLE link not ready: {err}", "link_not_ready", error=err) from err
         if len(frame) > limit:
-            raise KatanaCommandError(f"frame of {len(frame)} bytes exceeds the link's {limit}-byte limit")
+            raise KatanaCommandError(
+                f"frame of {len(frame)} bytes exceeds the link's {limit}-byte limit",
+                "frame_too_long",
+                size=len(frame),
+                limit=limit,
+            )
         try:
             await client.write_gatt_char(WRITE_UUID, frame, response=False)
         except BleakError as err:
-            raise KatanaCommandError(f"BLE write failed: {err}") from err
+            raise KatanaCommandError(f"BLE write failed: {err}", "write_failed", error=err) from err
 
     def _handle_notification(self, _char: BleakGATTCharacteristic, data: bytearray) -> None:
         self._reader.feed(bytes(data))

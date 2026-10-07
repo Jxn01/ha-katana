@@ -33,10 +33,10 @@ async def test_states_after_read_back(hass, entry):
     assert mp.attributes["source_list"] == ["TV", "USB Audio", "Optical", "Aux", "Bluetooth"]
     assert mp.attributes["sound_mode"] == "Music."
     assert mp.attributes["sound_mode_list"] == ["Music.", "Gaming.", "Voice.", "Effects Off"]
-    assert state(hass, "select", "output").state == "Speakers"
-    assert state(hass, "select", "decoder").state == "Full"
+    assert state(hass, "select", "output").state == "speakers"
+    assert state(hass, "select", "decoder").state == "full"
     assert state(hass, "select", "eq_preset").state == "Music"
-    assert state(hass, "select", "smart_volume_mode").state == "Manual"
+    assert state(hass, "select", "smart_volume_mode").state == "manual"
     assert state(hass, "select", "eq_preset").attributes["options"] == [
         "Gaming",
         "Music",
@@ -44,10 +44,10 @@ async def test_states_after_read_back(hass, entry):
         "Footsteps Enhancer",
         "Flat",
     ]
-    assert state(hass, "select", "mic_priority").state == "Auto"
-    assert state(hass, "select", "mic_eq_preset").state == "Off"
-    assert state(hass, "select", "auto_standby").state == "28 hours"
-    assert state(hass, "select", "display").state == "Bright"
+    assert state(hass, "select", "mic_priority").state == "auto"
+    assert state(hass, "select", "mic_eq_preset").state == "off"
+    assert state(hass, "select", "auto_standby").state == "28_hours"
+    assert state(hass, "select", "display").state == "bright"
     assert state(hass, "switch", "energy_saving").state == "on"
     assert state(hass, "switch", "cec_link").state == "on"
     assert float(state(hass, "number", "eq_band_3").state) == -1.0
@@ -126,9 +126,9 @@ async def test_light_brightness_is_gated_until_confirmed(hass, entry, fake):
 @pytest.mark.parametrize("allow_unconfirmed", [True])
 async def test_third_capture_entities_send_the_captured_bytes(hass, entry, fake):
     cases = [
-        ("select", "select_option", "mic_priority", {"option": "Headset Microphone"}, "5a2d0405020100"),
-        ("select", "select_option", "auto_standby", {"option": "8 hours"}, "5a390a07110f000000d1010000"),
-        ("select", "select_option", "display", {"option": "Bright"}, "5a390407120700"),
+        ("select", "select_option", "mic_priority", {"option": "headset_microphone"}, "5a2d0405020100"),
+        ("select", "select_option", "auto_standby", {"option": "8_hours"}, "5a390a07110f000000d1010000"),
+        ("select", "select_option", "display", {"option": "bright"}, "5a390407120700"),
         ("switch", "turn_off", "energy_saving", {}, "5a3903001100"),
         ("switch", "turn_on", "cec_link", {}, "5a3903001801"),
         ("number", "set_value", "mic_focus_angle", {"value": 180}, "5a12070195080000" + "3443"),
@@ -136,7 +136,7 @@ async def test_third_capture_entities_send_the_captured_bytes(hass, entry, fake)
             "select",
             "select_option",
             "smart_volume_mode",
-            {"option": "Night"},
+            {"option": "night"},
             p.store_write(0, [(p.KEY_SMART_VOLUME_MODE, 2.0)]).frame.hex(),
         ),
     ]
@@ -159,10 +159,11 @@ async def test_eq_band_sends_all_ten_bands_after_the_custom_mark(hass, entry, fa
 @pytest.mark.parametrize("allow_unconfirmed", [True])
 async def test_mic_eq_preset_switches_it_on_then_writes_the_bands(hass, entry, fake):
     from custom_components.sb_katana import captured
+    from custom_components.sb_katana.select import option_key
 
     name = next(iter(captured.MIC_EQ_PRESETS))
     before = len(fake.writes)
-    await call(hass, "select", "select_option", eid(hass, "select", "mic_eq_preset"), option=name)
+    await call(hass, "select", "select_option", eid(hass, "select", "mic_eq_preset"), option=option_key(name))
     sent = fake.writes_since(before)
     assert sent[:2] == [p.dsp_write(p.DSP_MIC_EQ, 1.0).frame.hex(), captured.MIC_EQ_PRESETS[name]]
 
@@ -182,8 +183,8 @@ async def test_sound_mode_is_confirmed(hass, entry, fake):
 
 async def test_input_and_sound_mode_are_selects_too(hass, entry):
     source = state(hass, "select", "input")
-    assert source.state == "USB Audio"
-    assert source.attributes["options"] == ["TV", "USB Audio", "Optical", "Aux", "Bluetooth"]
+    assert source.state == "usb_audio"
+    assert source.attributes["options"] == ["tv", "usb_audio", "optical", "aux", "bluetooth"]
     mode = state(hass, "select", "sound_mode")
     assert mode.state == "Music."
     assert mode.attributes["options"] == ["Music.", "Gaming.", "Voice.", "Effects Off"]
@@ -192,9 +193,9 @@ async def test_input_and_sound_mode_are_selects_too(hass, entry):
 @pytest.mark.parametrize("allow_unconfirmed", [True])
 async def test_input_and_sound_mode_selects_send_the_captured_bytes(hass, entry, fake):
     before = len(fake.writes)
-    await call(hass, "select", "select_option", eid(hass, "select", "input"), option="Optical")
+    await call(hass, "select", "select_option", eid(hass, "select", "input"), option="optical")
     assert fake.writes_since(before)[0] == "5a9c03000700"
-    assert state(hass, "select", "input").state == "Optical"
+    assert state(hass, "select", "input").state == "optical"
     before = len(fake.writes)
     await call(hass, "select", "select_option", eid(hass, "select", "sound_mode"), option="Gaming.")
     assert fake.writes_since(before)[0] == "5aa7020002"
@@ -217,7 +218,7 @@ async def test_every_write_entity_sends_the_captured_bytes(hass, entry, fake):
         ("media_player", "volume_mute", "soundbar", {"is_volume_muted": True}, "5a2403000001"),
         ("media_player", "select_source", "soundbar", {"source": "Optical"}, "5a9c03000700"),
         ("media_player", "select_sound_mode", "soundbar", {"sound_mode": "Effects Off"}, "5aa7020004"),
-        ("select", "select_option", "output", {"option": "Headphones"}, "5a2c050024000000"),
+        ("select", "select_option", "output", {"option": "headphones"}, "5a2c050024000000"),
         ("switch", "turn_on", "scout_mode", {}, "5a26050702000100"),
         ("switch", "turn_off", "auto_switch_tv", {}, "5a67020c00"),
         ("number", "set_value", "subwoofer", {"value": -1}, "5a40040401ffff"),
@@ -234,9 +235,9 @@ async def test_every_write_entity_sends_the_captured_bytes(hass, entry, fake):
 
 @pytest.mark.parametrize("allow_unconfirmed", [True])
 async def test_store_writes_follow_the_output(hass, entry, fake):
-    await call(hass, "select", "select_option", eid(hass, "select", "output"), option="Headphones")
+    await call(hass, "select", "select_option", eid(hass, "select", "output"), option="headphones")
     before = len(fake.writes)
-    await call(hass, "select", "select_option", eid(hass, "select", "decoder"), option="Night")
+    await call(hass, "select", "select_option", eid(hass, "select", "decoder"), option="night")
     assert fake.writes_since(before)[0] == p.store_write(2, [(p.KEY_DECODER, 3.0)]).frame.hex()
     await call(hass, "number", "set_value", eid(hass, "number", "surround_level"), value=40)
     assert p.store_write(2, [(p.KEY_SURROUND_LEVEL, 0.4)]).frame.hex() in fake.writes

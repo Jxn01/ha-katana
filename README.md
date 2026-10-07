@@ -87,6 +87,25 @@ offered.
 | **Auto standby** (config) | 28 hours, 8 hours, 2 hours, 1 hour, 30 minutes, Never — time to full standby | `auto_standby` |
 | **Display** (config) | Bright, Dark, Off (Dark/Off inferred from tap order) | `display` |
 
+**Option keys.** Since 0.2.0 the selects with a fixed list report a *key* as their state, and the UI shows
+it translated (English, Hungarian). Use the key in automations and in `select.select_option`:
+
+| Select | Keys (in order) |
+|---|---|
+| Input | `tv`, `usb_audio`, `optical`, `aux`, `bluetooth` (only those the soundbar lists) |
+| Output | `speakers`, `headphones` |
+| Decoder | `normal`, `full`, `night` |
+| Smart Volume mode | `manual`, `loud`, `night` |
+| Microphone priority | `auto`, `headset_microphone`, `microphone_array` |
+| Microphone equalizer | `off`, `reduce_bass_harshness_improve_clarity`, `reduce_bass_improve_vocal_and_clarity`, `reduce_harshness_improve_vocal`, `reduce_bass_improve_vocal`, `improve_vocal_reduce_harshness`, `reduce_bass_improve_clarity`, `reduce_vocal_improve_bass_and_clarity`, `reduce_harshness_improve_vocal_and_clarity`, `reduce_harshness_improve_clarity`, `improve_clarity`, `improve_vocal_and_clarity` |
+| Auto standby | `28_hours`, `8_hours`, `2_hours`, `1_hour`, `30_minutes`, `never` |
+| Display | `bright`, `dark`, `off` |
+
+A key is the English label in lower case with every other run of characters turned into one `_`
+(`select.option_key`). **Sound mode** and **EQ preset** keep the names the soundbar itself uses ("Music.",
+"Gaming.", "Onboard", "Footsteps Enhancer"), because the soundbar names them; the media player's source list
+also keeps the plain labels.
+
 ### Numbers
 
 | Entity | Range | Gate |
@@ -208,6 +227,26 @@ service, **`sb_katana.stream_frame`**, exists for automations and tests:
 - **Flash.** The soundbar saves settings to flash only after it has been idle (measured), so wear scales
   with how often a value settles, not with how fast it is written.
 
+## Look and language
+
+- **Brand images** in `custom_components/sb_katana/brand/` (`icon.png` 256², `icon@2x.png` 512²,
+  `logo.png` 512×256, `logo@2x.png` 1024×512). Home Assistant 2026.9+ serves a custom integration's own
+  `brand/` folder, so the integrations page, the device page and the config flow show the Sound Blaster mark
+  instead of the placeholder. Source: the classic Sound Blaster logo,
+  [`File:Sound Blaster logo.svg`](https://commons.wikimedia.org/wiki/File:Sound_Blaster_logo.svg) on Wikimedia
+  Commons, marked public domain (simple text and shapes). The square icon is the same two bands, made taller,
+  with the original lettering; nothing was redrawn. It is opaque on purpose, so no `dark_` variant is needed.
+- **Icons** for every entity, state-dependent where useful (screen sync on/off, input, output, display,
+  standby), and for the `stream_frame` service: `icons.json`.
+- **Languages:** English and **Hungarian** (`translations/hu.json`): entity names, select options, the
+  config and options flows, the repair issue, the service, and every error a user can see. Errors keep an
+  English message for logs; the UI shows the translated one.
+- `tests/test_ui.py` fails the build if an entity lacks an icon or a name in either language, a select option
+  lacks a translation, Hungarian and English drift apart (keys or placeholders), a user-visible `raise` has no
+  translation key, or a brand image breaks the brands spec. hassfest checks only the format of `strings.json`,
+  `translations/en.json` and `icons.json` (an icon must start with `mdi:`); whether an MDI name exists, and every
+  other language, are this test's job.
+
 ## Development
 
 ```bash
@@ -226,6 +265,7 @@ python3.14 -m venv ~/.local/share/venvs/ha-katana      # never a venv inside the
 | `custom_components/sb_katana/transport.py` | bleak through HA's Bluetooth stack |
 | `custom_components/sb_katana/stream.py`, `api.py` | Screen sync, the HTTP endpoint and the service |
 | `tools/` | Capture decoders (`frames.py`, `pairs.py`) and the sequence generator |
+| `custom_components/sb_katana/icons.json`, `translations/`, `brand/` | Icons, English + Hungarian text, brand images |
 | `tests/` | Golden vectors, guards, a fake soundbar answering with captured replies, HA-harness tests |
 
 CI runs ruff and pytest on Python 3.14 and hassfest. HACS validation is left out while the repository is
@@ -234,5 +274,7 @@ private, because it reads the repository through the API and cannot see a privat
 
 ## Licence
 
-MIT (`LICENSE`); attribution in `NOTICE`. Parts of `protocol.py` are translated from the [`v2x`](https://git.dog/xx/v2x) crate by Rasmus Moorats
+MIT (`LICENSE`); attribution in `NOTICE`. "Sound Blaster", "Katana" and "Creative" are trademarks of
+Creative Technology Ltd; the logo is used only to identify the device this integration talks to, and this
+project is not affiliated with or endorsed by Creative. Parts of `protocol.py` are translated from the [`v2x`](https://git.dog/xx/v2x) crate by Rasmus Moorats
 (MIT).

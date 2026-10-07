@@ -1,3 +1,8 @@
 Portions of custom_components/sb_katana/protocol.py are a translation of the
 v2x crate (https://git.dog/xx/v2x), Copyright (c) 2026 Rasmus Moorats, used
 under the MIT License.
+
+The images in custom_components/sb_katana/brand/ are derived from the Sound Blaster
+logo (https://commons.wikimedia.org/wiki/File:Sound_Blaster_logo.svg, marked public
+domain on Wikimedia Commons). "Sound Blaster", "Katana" and "Creative" are trademarks
+of Creative Technology Ltd; this project is not affiliated with or endorsed by Creative.

@@ -33,28 +33,6 @@
       }
     }
   },
-  "issues": {
-    "untested_firmware": {
-      "title": "Katana firmware is not the tested version",
-      "description": "The soundbar reports firmware {found}, but the integration was built against {tested}. Every write is refused until the commands are re-verified on this firmware; reads still work. Do not install firmware updates from Creative's app if you want to keep control from Home Assistant."
-    }
-  },
-  "services": {
-    "stream_frame": {
-      "name": "Stream frame",
-      "description": "Show one screen-sync colour (the PC uses the /api/sb_katana/stream endpoint instead, which records nothing).",
-      "fields": {
-        "rgb": {
-          "name": "Colour",
-          "description": "Red, green, blue, 0-255 each."
-        },
-        "config_entry_id": {
-          "name": "Soundbar",
-          "description": "Only needed when more than one soundbar is set up."
-        }
-      }
-    }
-  },
   "entity": {
     "light": {
       "lighting": {
@@ -107,34 +85,87 @@
     },
     "select": {
       "output": {
-        "name": "Output"
+        "name": "Output",
+        "state": {
+          "speakers": "Speakers",
+          "headphones": "Headphones"
+        }
       },
       "decoder": {
-        "name": "Decoder"
+        "name": "Decoder",
+        "state": {
+          "normal": "Normal",
+          "full": "Full",
+          "night": "Night"
+        }
       },
       "eq_preset": {
         "name": "EQ preset"
       },
       "smart_volume_mode": {
-        "name": "Smart Volume mode"
+        "name": "Smart Volume mode",
+        "state": {
+          "manual": "Manual",
+          "loud": "Loud",
+          "night": "Night"
+        }
       },
       "input": {
-        "name": "Input"
+        "name": "Input",
+        "state": {
+          "tv": "TV",
+          "usb_audio": "USB Audio",
+          "optical": "Optical",
+          "aux": "Aux",
+          "bluetooth": "Bluetooth"
+        }
       },
       "sound_mode": {
         "name": "Sound mode"
       },
       "mic_priority": {
-        "name": "Microphone priority"
+        "name": "Microphone priority",
+        "state": {
+          "auto": "Auto",
+          "headset_microphone": "Headset Microphone",
+          "microphone_array": "Microphone Array"
+        }
       },
       "mic_eq_preset": {
-        "name": "Microphone equalizer"
+        "name": "Microphone equalizer",
+        "state": {
+          "off": "Off",
+          "reduce_bass_harshness_improve_clarity": "Reduce Bass, Harshness; Improve Clarity",
+          "reduce_bass_improve_vocal_and_clarity": "Reduce Bass; Improve Vocal and Clarity",
+          "reduce_harshness_improve_vocal": "Reduce Harshness; Improve Vocal",
+          "reduce_bass_improve_vocal": "Reduce Bass; Improve Vocal",
+          "improve_vocal_reduce_harshness": "Improve Vocal; Reduce Harshness",
+          "reduce_bass_improve_clarity": "Reduce Bass; Improve Clarity",
+          "reduce_vocal_improve_bass_and_clarity": "Reduce Vocal, Improve Bass and Clarity",
+          "reduce_harshness_improve_vocal_and_clarity": "Reduce Harshness; Improve Vocal and Clarity",
+          "reduce_harshness_improve_clarity": "Reduce Harshness; Improve Clarity",
+          "improve_clarity": "Improve Clarity",
+          "improve_vocal_and_clarity": "Improve Vocal and Clarity"
+        }
       },
       "auto_standby": {
-        "name": "Auto standby"
+        "name": "Auto standby",
+        "state": {
+          "28_hours": "28 hours",
+          "8_hours": "8 hours",
+          "2_hours": "2 hours",
+          "1_hour": "1 hour",
+          "30_minutes": "30 minutes",
+          "never": "Never"
+        }
       },
       "display": {
-        "name": "Display"
+        "name": "Display",
+        "state": {
+          "bright": "Bright",
+          "dark": "Dark",
+          "off": "Off"
+        }
       }
     },
     "number": {
@@ -188,6 +219,102 @@
     "button": {
       "reread_state": {
         "name": "Re-read state"
+      }
+    }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "The soundbar command failed: {message}"
+    },
+    "not_connected": {
+      "message": "The soundbar is not connected."
+    },
+    "not_in_range": {
+      "message": "The soundbar ({address}) is not in range of a Bluetooth adapter that can connect to it."
+    },
+    "link_not_ready": {
+      "message": "The Bluetooth link to the soundbar is not ready yet: {error}"
+    },
+    "frame_too_long": {
+      "message": "The command is {size} bytes, more than this Bluetooth link accepts ({limit})."
+    },
+    "write_failed": {
+      "message": "Sending to the soundbar over Bluetooth failed: {error}"
+    },
+    "no_answer": {
+      "message": "The soundbar did not answer command {frame}."
+    },
+    "no_reply": {
+      "message": "The soundbar acknowledged command {frame} but sent no data back."
+    },
+    "rejected": {
+      "message": "The soundbar rejected command {frame} (status {status})."
+    },
+    "untested_firmware": {
+      "message": "The soundbar runs firmware {found}, but only {tested} has been tested, so every change is refused. Reading still works."
+    },
+    "unconfirmed": {
+      "message": "“{control}” has not been confirmed working on this soundbar yet. Turn on “Allow unconfirmed controls” in the integration's options to try it."
+    },
+    "output_unknown": {
+      "message": "It is not known yet whether the speakers or the headphones are active, so it is unclear which side to change. Re-read the state and try again."
+    },
+    "eq_bands_unknown": {
+      "message": "The current equalizer bands are not known yet. Re-read the state and try again."
+    },
+    "volume_unknown": {
+      "message": "The current volume is not known yet. Re-read the state and try again."
+    },
+    "unknown_eq_preset": {
+      "message": "Unknown EQ preset: {name}."
+    },
+    "unknown_light_preset": {
+      "message": "Unknown lighting effect: {name}."
+    },
+    "unknown_mic_eq_preset": {
+      "message": "Unknown microphone equalizer preset: {name}."
+    },
+    "unknown_source": {
+      "message": "Unknown input: {source}."
+    },
+    "unknown_sound_mode": {
+      "message": "Unknown sound mode: {sound_mode}."
+    },
+    "unknown_option": {
+      "message": "Unknown option: {option}."
+    },
+    "no_loaded_entry": {
+      "message": "No Sound Blaster Katana V2X is set up and loaded."
+    },
+    "several_entries": {
+      "message": "More than one soundbar is set up: say which one with config_entry_id."
+    },
+    "not_ready": {
+      "message": "The soundbar at {address} did not answer: {error}"
+    },
+    "reconnect_failed": {
+      "message": "Could not reconnect to the soundbar yet (it keeps trying): {error}"
+    }
+  },
+  "issues": {
+    "untested_firmware": {
+      "title": "Katana firmware is not the tested version",
+      "description": "The soundbar reports firmware {found}, but the integration was built against {tested}. Every write is refused until the commands are re-verified on this firmware; reads still work. Do not install firmware updates from Creative's app if you want to keep control from Home Assistant."
+    }
+  },
+  "services": {
+    "stream_frame": {
+      "name": "Stream frame",
+      "description": "Show one screen-sync colour (the PC uses the /api/sb_katana/stream endpoint instead, which records nothing).",
+      "fields": {
+        "rgb": {
+          "name": "Colour",
+          "description": "Red, green, blue, 0-255 each."
+        },
+        "config_entry_id": {
+          "name": "Soundbar",
+          "description": "Only needed when more than one soundbar is set up."
+        }
       }
     }
   }

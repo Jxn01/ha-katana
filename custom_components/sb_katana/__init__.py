@@ -83,7 +83,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: KatanaConfigEntry) -> bo
         await device.start()
     except (KatanaCommandError, BleakError, TimeoutError, OSError) as err:
         await device.stop()
-        raise ConfigEntryNotReady(f"Katana at {address} did not answer: {err}") from err
+        raise ConfigEntryNotReady(
+            f"Katana at {address} did not answer: {err}",
+            translation_domain=DOMAIN,
+            translation_key="not_ready",
+            translation_placeholders={"address": address, "error": str(err)},
+        ) from err
 
     issue_id = f"untested_firmware_{entry.entry_id}"
     shown: list[str | None] = [None]

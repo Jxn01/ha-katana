@@ -1,7 +1,16 @@
-"""Selects: output, decoder, EQ preset, Smart Volume mode."""
+"""Selects: input, sound mode, output, decoder, EQ and microphone presets, device settings.
+
+Selects with a fixed option list expose slug keys ("usb_audio", "28_hours") rather than
+the soundbar's English labels, so the UI can translate them (``strings.json`` ->
+``entity.select.<key>.state``). The labels stay the internal currency: protocol tables,
+captured presets and the device API all speak labels, and ``option_key`` is the one
+place that maps between the two. Options the soundbar names itself (its stored sound
+modes, its EQ presets) are shown as it names them.
+"""
 
 from __future__ import annotations
 
+import re
 import struct
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -14,6 +23,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import KatanaConfigEntry, captured
 from . import protocol as p
+from .const import DOMAIN
 from .device import KatanaDevice
 from .entity import KatanaEntity
 from .families import EQ_PRESET_LABELS
@@ -23,6 +33,11 @@ _EQ_LABEL_TO_NAME = {label: name for name, label in EQ_PRESET_LABELS.items()}
 _SMART_VOLUME_MODES = {"Manual": 0, "Loud": 1, "Night": 2}
 _MIC_EQ_OFF = "Off"
 _DECODER_CODES = {label: code for code, label in p.DECODER_LABELS.items()}
+
+
+def option_key(label: str) -> str:
+    """A label as a translation key: lower case, every run of other characters one '_'."""
+    return re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
 
 
 def _store_value(device: KatanaDevice, key: tuple[int, int]) -> float | int | None:
@@ -134,6 +149,8 @@ class KatanaSelectDescription(SelectEntityDescription):
     choose: Callable[[KatanaDevice, str], Awaitable[None]]
     # Options read from the soundbar (its input list, its stored modes) rather than fixed.
     options_fn: Callable[[KatanaDevice], list[str]] | None = None
+    # Expose option_key(label) instead of the label, so the state can be translated.
+    translated: bool = True
 
 
 SELECTS: tuple[KatanaSelectDescription, ...] = (
@@ -152,6 +169,7 @@ SELECTS: tuple[KatanaSelectDescription, ...] = (
         options_fn=lambda d: d.state.mode_options(),
         current=lambda d: d.state.mode_name,
         choose=_choose_mode,
+        translated=False,  # the soundbar's own names: "Music.", "Gaming.", "Onboard"
     ),
     KatanaSelectDescription(
         key="output",
@@ -171,6 +189,7 @@ SELECTS: tuple[KatanaSelectDescription, ...] = (
         options_fn=_eq_options,
         current=_eq_preset,
         choose=_choose_eq,
+        translated=False,  # Creative's preset names, plus the live EQ's own name
     ),
     KatanaSelectDescription(
         key="mic_priority",
@@ -220,16 +239,22 @@ class KatanaSelect(KatanaEntity, SelectEntity):
         super().__init__(entry, description.key)
         self.entity_description = description
 
-    @property
-    def options(self) -> list[str]:
+    def _labels(self) -> list[str]:
         if self.entity_description.options_fn is not None:
             return self.entity_description.options_fn(self._device)
-        return super().options
+        return list(self.entity_description.options or [])
+
+    @property
+    def options(self) -> list[str]:
+        labels = self._labels()
+        return [option_key(label) for label in labels] if self.entity_description.translated else labels
 
     @property
     def current_option(self) -> str | None:
         current = self.entity_description.current(self._device)
-        return current if current in self.options else None
+        if current is None or current not in self._labels():
+            return None
+        return option_key(current) if self.entity_description.translated else current
 
     @property
     def extra_state_attributes(self) -> dict[str, bool] | None:
@@ -239,6 +264,14 @@ class KatanaSelect(KatanaEntity, SelectEntity):
         return {"modified": self._device.state.mode_modified}
 
     async def async_select_option(self, option: str) -> None:
-        if option not in self.options:
-            raise ServiceValidationError(f"unknown option {option!r}")
-        await self.entity_description.choose(self._device, option)
+        labels = self._labels()
+        key = option_key if self.entity_description.translated else str
+        by_option = {key(label): label for label in labels}
+        if option not in by_option:
+            raise ServiceValidationError(
+                f"unknown option {option!r}",
+                translation_domain=DOMAIN,
+                translation_key="unknown_option",
+                translation_placeholders={"option": option},
+            )
+        await self.entity_description.choose(self._device, by_option[option])

@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import KatanaConfigEntry
 from . import protocol as p
+from .const import DOMAIN
 from .entity import KatanaEntity
 
 
@@ -78,7 +79,11 @@ class KatanaMediaPlayer(KatanaEntity, MediaPlayerEntity):
     def _current_level(self) -> int:
         level = self._device.state.levels.get(p.CH_SPEAKERS)
         if level is None:
-            raise HomeAssistantError("the current volume is unknown; re-read state first")
+            raise HomeAssistantError(
+                "the current volume is unknown; re-read state first",
+                translation_domain=DOMAIN,
+                translation_key="volume_unknown",
+            )
         return level
 
     async def async_volume_up(self) -> None:
@@ -93,7 +98,12 @@ class KatanaMediaPlayer(KatanaEntity, MediaPlayerEntity):
     async def async_select_source(self, source: str) -> None:
         ids = {label: i for i, label in p.INPUT_LABELS.items()}
         if source not in ids:
-            raise ServiceValidationError(f"unknown source {source!r}")
+            raise ServiceValidationError(
+                f"unknown source {source!r}",
+                translation_domain=DOMAIN,
+                translation_key="unknown_source",
+                translation_placeholders={"source": source},
+            )
         await self._device.set_input(ids[source])
 
     async def async_select_sound_mode(self, sound_mode: str) -> None:
@@ -101,5 +111,10 @@ class KatanaMediaPlayer(KatanaEntity, MediaPlayerEntity):
         if sound_mode == self._device.state.mode_name and sound_mode not in modes:
             return  # the live settings ("Onboard") are already active
         if sound_mode not in modes:
-            raise ServiceValidationError(f"unknown sound mode {sound_mode!r}")
+            raise ServiceValidationError(
+                f"unknown sound mode {sound_mode!r}",
+                translation_domain=DOMAIN,
+                translation_key="unknown_sound_mode",
+                translation_placeholders={"sound_mode": sound_mode},
+            )
         await self._device.select_mode(modes[sound_mode])
