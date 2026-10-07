@@ -75,7 +75,7 @@ offered.
 | Entity | Options | Gate |
 |---|---|---|
 | **Input** | Read from the soundbar: TV, USB Audio, Optical, Aux, Bluetooth. Also on the media player | `input` |
-| **Sound mode** | The modes stored on the soundbar, e.g. "Music.", "Gaming.", "Voice.", "Effects Off". Also on the media player. After a setting is changed live, the soundbar reports its live copy instead of a stored mode: the entity then shows the mode it came from with attribute `modified: true`, and picking that mode again restores its stored settings | `sound_mode` |
+| **Sound mode** | The modes stored on the soundbar, e.g. "Music.", "Gaming.", "Voice.", "Effects Off". Also on the media player. After a setting is changed live, the soundbar reports its live copy, which it renames **"Onboard"**: that name is then the current option, with attribute `modified: true`. Picking a stored mode loads it (and drops the live changes); picking "Onboard" sends nothing | `sound_mode` |
 | **Output** | Speakers, Headphones | `output` |
 | **Decoder** | Normal, Full, Night (Dolby dynamic range control) | `decoder` |
 | **EQ preset** | Gaming, Music, Movies, Footsteps Enhancer: the four presets whose full curves were captured from the app | `eq_preset` |

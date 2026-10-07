@@ -56,7 +56,11 @@ async def _choose_input(device: KatanaDevice, label: str) -> None:
 
 
 async def _choose_mode(device: KatanaDevice, name: str) -> None:
-    await device.select_mode(device.state.stored_modes()[name])
+    stored = device.state.stored_modes()
+    if name not in stored:
+        # The live settings ("Onboard"): already active, nothing to send.
+        return
+    await device.select_mode(stored[name])
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -80,7 +84,7 @@ SELECTS: tuple[KatanaSelectDescription, ...] = (
     KatanaSelectDescription(
         key="sound_mode",
         options=[],
-        options_fn=lambda d: list(d.state.stored_modes()),
+        options_fn=lambda d: d.state.mode_options(),
         current=lambda d: d.state.mode_name,
         choose=_choose_mode,
     ),

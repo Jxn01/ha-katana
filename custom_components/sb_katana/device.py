@@ -76,7 +76,7 @@ class KatanaState:
     scout: bool | None = None
     mode_active: int | None = None  # 0 = the live copy no longer matches a stored mode (edited)
     mode_names: dict[int, str] = field(default_factory=dict)
-    mode_live_name: str | None = None  # the live copy's own name: the mode it was loaded from
+    mode_live_name: str | None = None  # the live copy's own name ("Onboard" once edited live)
     store: dict[int, StoreValues] = field(default_factory=dict)  # live slot, keyed by sub
     eq_names: dict[int, str] = field(default_factory=dict)  # live EQ name, keyed by sub
     dsp: dict[int, float] = field(default_factory=dict)
@@ -102,9 +102,20 @@ class KatanaState:
         """The live settings were changed after a stored mode was selected (active slot 0)."""
         return self.mode_active == p.LIVE_SLOT
 
+    def mode_options(self) -> list[str]:
+        """Stored modes, plus the live copy's name while it is in use and is not one of them.
+
+        Edited live, the soundbar renames its working copy "Onboard" (seen 2026-10-07),
+        so that name is what is active and has to be selectable as the current option.
+        """
+        options = list(self.stored_modes())
+        if self.mode_active == p.LIVE_SLOT and self.mode_live_name and self.mode_live_name not in options:
+            options.append(self.mode_live_name)
+        return options
+
     @property
     def mode_name(self) -> str | None:
-        """The stored mode in use; when edited live, the mode it was loaded from."""
+        """The stored mode in use; when edited live, the live copy's own name."""
         if self.mode_active is None:
             return None
         if self.mode_active == p.LIVE_SLOT:

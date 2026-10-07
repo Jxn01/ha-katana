@@ -249,14 +249,29 @@ async def test_reread_button_does_not_blank_the_entities(hass, entry):
     assert "unavailable" not in changes
 
 
-async def test_an_edited_mode_shows_the_mode_it_came_from(hass, entry, fake):
-    """Changing acoustic settings live makes the soundbar report active slot 0."""
+def _live_name_frame(name: str) -> str:
+    data = name.encode("utf-16-le")
+    payload = bytes([0x06, 0x00, 0x00, 0x10, 0x10, 0x00]) + data + bytes(32 - len(data))
+    return (bytes([0x5A, 0xA7, len(payload)]) + payload).hex()
+
+
+async def test_an_edited_mode_shows_onboard_and_picking_a_mode_restores(hass, entry, fake):
+    """Changed live, the soundbar reports active slot 0 and renames its live copy "Onboard"."""
+    fake.notify(_live_name_frame("Onboard"))
     fake.notify("5aa7020100")  # a7:01 -> slot 0
     await hass.async_block_till_done()
     mode = state(hass, "select", "sound_mode")
-    assert mode.state == "Music."
+    assert mode.state == "Onboard"
+    assert mode.attributes["options"] == ["Music.", "Gaming.", "Voice.", "Effects Off", "Onboard"]
     assert mode.attributes["modified"] is True
-    assert state(hass, "media_player", "soundbar").attributes["sound_mode"] == "Music."
-    fake.notify("5aa7020101")  # picked again: stored settings restored
+    assert state(hass, "media_player", "soundbar").attributes["sound_mode"] == "Onboard"
+    before = len(fake.writes)
+    entry.runtime_data.device.allow_unconfirmed = True
+    await call(hass, "select", "select_option", eid(hass, "select", "sound_mode"), option="Onboard")
+    assert fake.writes_since(before) == []  # already active: nothing sent
+    fake.notify(_live_name_frame("Music."))
+    fake.notify("5aa7020101")  # a stored mode picked again
     await hass.async_block_till_done()
-    assert state(hass, "select", "sound_mode").attributes["modified"] is False
+    mode = state(hass, "select", "sound_mode")
+    assert mode.state == "Music." and mode.attributes["modified"] is False
+    assert "Onboard" not in mode.attributes["options"]

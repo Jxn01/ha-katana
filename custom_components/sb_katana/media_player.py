@@ -66,7 +66,7 @@ class KatanaMediaPlayer(KatanaEntity, MediaPlayerEntity):
 
     @property
     def sound_mode_list(self) -> list[str]:
-        return list(self._device.state.stored_modes())
+        return self._device.state.mode_options()
 
     @property
     def sound_mode(self) -> str | None:
@@ -98,6 +98,8 @@ class KatanaMediaPlayer(KatanaEntity, MediaPlayerEntity):
 
     async def async_select_sound_mode(self, sound_mode: str) -> None:
         modes = self._device.state.stored_modes()
+        if sound_mode == self._device.state.mode_name and sound_mode not in modes:
+            return  # the live settings ("Onboard") are already active
         if sound_mode not in modes:
             raise ServiceValidationError(f"unknown sound mode {sound_mode!r}")
         await self._device.select_mode(modes[sound_mode])
