@@ -148,3 +148,31 @@ async def test_hundred_frames_cost_one_state_change(hass, entry, fake, stream, h
     assert changes.count(receiving) == 1
     assert changes.count(light) == 0
     assert len(stream_writes(fake)) >= 5
+
+
+async def test_external_colour_changes_are_throttled(hass, entry, fake, monkeypatch):
+    """ambience-rgb over USB (or the remote) changing colours must not flood the recorder."""
+    from custom_components.sb_katana import light as light_mod
+
+    monkeypatch.setattr(light_mod, "EXTERNAL_COLOUR_INTERVAL", 0.5)
+    registry = er.async_get(hass)
+    light = registry.async_get_entity_id("light", DOMAIN, f"{FAKE_ADDRESS}_lighting")
+    changes: list = []
+    hass.bus.async_listen(EVENT_STATE_CHANGED, lambda e: changes.append(e) if e.data["entity_id"] == light else None)
+    for i in range(40):
+        fake.notify("5a3a202c000101" + bytes([0xFF, 0, 0, i + 1]).hex() + "ff000000" * 6)
+        await asyncio.sleep(0.025)  # 40 changes in 1 s
+    await asyncio.sleep(0.6)
+    await hass.async_block_till_done()
+    # 40 changes over ~1.6 s with a 0.5 s interval: at most one publish per interval, plus the first.
+    assert 1 <= len(changes) <= 4
+    # The newest colour is what is eventually shown.
+    assert hass.states.get(light).attributes["brightness"] == 40
+
+
+async def test_on_off_from_outside_is_published_at_once(hass, entry, fake):
+    registry = er.async_get(hass)
+    light = registry.async_get_entity_id("light", DOMAIN, f"{FAKE_ADDRESS}_lighting")
+    fake.notify("5a3a022600")
+    await hass.async_block_till_done()
+    assert hass.states.get(light).state == "off"
