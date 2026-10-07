@@ -181,3 +181,23 @@ async def test_start_fails_when_unreachable():
     device = dev.KatanaDevice(fake)
     with pytest.raises(TimeoutError):
         await device.start()
+
+
+async def test_reads_that_time_out_are_retried_once(monkeypatch):
+    monkeypatch.setattr(dev, "REPLY_TIMEOUT", 0.05)
+    fake = FakeKatana()
+    stalled = p.output_query().frame.hex()
+    fake.silent.add(stalled)
+    original = fake.write
+
+    async def write_once_silent(data: bytes) -> None:
+        await original(data)
+        if data.hex() == stalled:
+            fake.silent.discard(stalled)  # the second ask is answered
+
+    fake.write = write_once_silent
+    device = dev.KatanaDevice(fake)
+    await device.start()
+    assert fake.writes.count(stalled) == 2
+    assert device.state.output == "speakers"
+    await device.stop()

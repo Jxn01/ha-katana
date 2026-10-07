@@ -18,7 +18,7 @@ Only *confirmed* writes are enabled by default in the integration (see the desig
 
 | | |
 |---|---|
-| Device name | `Control for MF8400`, random static address `FF:02:3C:A0:E9:F0` (its classic address is `00:02:3C:A0:E9:F0`, also reported by `0x60/02`) |
+| Device name | `Control for MF8400` (in the scan response only — the advertisement itself carries flags `0x0A`, manufacturer `0x1006` and the command service UUID), random static address `FF:02:3C:xx:xx:xx` (its classic address is `00:02:3C:xx:xx:xx`, also reported by `0x60/02`) |
 | Command service | `9e9daaea-…` |
 | Write characteristic | `9e9daaec-…` — ATT value handle **0x000b** (bleak handle 0x000a). The app uses **Write Command** (0x52, no response). |
 | Notify characteristic | `9e9daaeb-…` — ATT value handle **0x0008** (bleak 0x0007) |
@@ -78,7 +78,7 @@ morning checklist. The parser must tolerate unknown opcodes.
 | `09 02` | `09 02 10 "1.3.230619.1820"` | firmware version (len-prefixed ASCII) | confirmed |
 | `09 03` | `09 03 "Q8MF…"` | serial number, ASCII, NUL-terminated | confirmed |
 | `09 00`, `09 01 0x`, `09 04` | binary | other version/info fields | unknown |
-| `60 02` | `60 02 06 00 02 3c a0 e9 f0` | Bluetooth address | confirmed |
+| `60 02` | `60 02 06 00 02 3c xx xx xx` | Bluetooth address | confirmed |
 | `20`, `21`, `10`, `30`, `31 01`, `39 0x`, `a5 01 0x`, `6f 0x` | binary | capability/info tables (`6f 0d` = `"MV  0007.1"` / `"MV  0002.0"` stream format) | unknown |
 
 ### Output — `0x2C` (confirmed)

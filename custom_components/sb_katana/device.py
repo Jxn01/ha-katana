@@ -400,16 +400,25 @@ class KatanaDevice:
     async def refresh(self, *, full: bool = False) -> None:
         """Read state back. The full read is what connect does; the quick one is the poll.
 
-        A failed read clears nothing it did not touch, but a failed full read
-        raises, because a soundbar that cannot even report its firmware is not set up.
+        Right after a connect the soundbar can sit on a few questions for several
+        seconds (seen in the app's capture and live), so a read that times out is
+        retried once at the end. A failed full read of the identity raises,
+        because a soundbar that cannot even report its firmware is not set up.
         """
+        failed: list[p.Command] = []
         for cmd in self._read_plan(full):
             try:
                 await self.request(cmd)
             except KatanaCommandError as err:
                 if full and cmd.op in (p.OP_PING, p.OP_INFO):
                     raise
-                _LOGGER.debug("Read %s failed: %s", cmd.frame.hex(), err)
+                _LOGGER.debug("Read %s failed, will retry: %s", cmd.frame.hex(), err)
+                failed.append(cmd)
+        for cmd in failed:
+            try:
+                await self.request(cmd)
+            except KatanaCommandError as err:
+                _LOGGER.debug("Read %s failed again: %s", cmd.frame.hex(), err)
         self._notify()
 
     # --- intents ----------------------------------------------------------------------
