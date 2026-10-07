@@ -1,19 +1,15 @@
-"""Pair each TX with the RX frames that follow it until the next TX."""
+"""Pair each command in a capture with the notifications that follow it until the next command."""
 
-import sys
-
-sys.path.insert(0, "/home/jxn/Downloads/katana-capture/decode")
 from frames import load
 
 
-def pairs():
-    F = load()
-    out = []
-    cur = None
-    for f in F:
+def pairs(path: str) -> list[dict]:
+    out: list[dict] = []
+    current = None
+    for f in load(path):
         if f["dir"] == "TX":
-            cur = {"tx": f, "rx": []}
-            out.append(cur)
-        elif cur is not None:
-            cur["rx"].append(f)
+            current = {"tx": f, "rx": []}
+            out.append(current)
+        elif current is not None:
+            current["rx"].append(f)
     return out

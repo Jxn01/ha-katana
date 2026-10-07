@@ -1,0 +1,9 @@
+# HA 2026.9.3's test harness, plus the requirements of the core components the tests load
+# (bluetooth, usb). Install into ~/.local/share/venvs/ha-katana -- never a venv inside this repo.
+pytest-homeassistant-custom-component==0.13.366
+aiousbwatcher==1.1.2
+serialx==1.10.0
+psutil-home-assistant==0.0.1
+habluetooth==6.26.11
+bleak-retry-connector==4.7.0
+ruff

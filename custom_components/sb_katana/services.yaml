@@ -1,0 +1,12 @@
+stream_frame:
+  fields:
+    rgb:
+      required: true
+      example: [255, 128, 0]
+      selector:
+        color_rgb:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: sb_katana

@@ -203,14 +203,24 @@ stream frame.
 6. **Flash.** Writes go out only on intent or stream change, never on a timer. The firmware saves after
    it goes idle (measured 2026-10-07), so wear follows how often a value settles, not the write rate.
 
-## 6. Stream (`sb_katana.stream_frame`)
+## 6. Stream
 
-```yaml
-sb_katana.stream_frame:
-  fields:
-    rgb: [r, g, b]          # required, 0-255 each
-    config_entry_id: str    # optional; defaults to the only entry
+**Transport change from the conversation, made during the build (2026-10-07 03:1x):** the PC does **not**
+call the `sb_katana.stream_frame` *service* per frame. `ServiceRegistry.async_call` fires a `call_service`
+bus event for every call (`homeassistant/core.py`), and with no recorder exclusions every event becomes a
+row in the `events` table. At 10 Hz that is ~36,000 rows an hour — exactly the churn the design ruled out,
+just in a different table. So the PC posts to an **authenticated REST endpoint** instead, which fires no bus
+event. It is still REST, still a Bearer token, still matterlights' `requests` pattern:
+
 ```
+POST /api/sb_katana/stream          Authorization: Bearer <long-lived token>
+{"rgb": [r, g, b]}                  optional "config_entry_id"
+-> 200 {"accepted": true|false}     false while Screen sync is off
+-> 400 on a bad body, 404 if no soundbar is set up
+```
+
+The `sb_katana.stream_frame` service still exists, with the same fields, for automations and manual tests.
+Both paths call the same `StreamController.handle_frame`.
 
 - The handler validates the frame, records `last_frame_at`, and stores the colour in the stream slot. It
   never touches entity state.
@@ -260,8 +270,8 @@ sb_katana.stream_frame:
 
 ## 9. Contract for sub-project 3 (ambience-rgb)
 
-- A new sink in ambience-rgb POSTs `/api/services/sb_katana/stream_frame` with `{"rgb": [r, g, b]}` and a
-  long-lived token. On Linux the token lives in `.env.linux`, on Windows in `.env.windows`, both
+- A new sink in ambience-rgb POSTs `/api/sb_katana/stream` (§6; not the service URL) with
+  `{"rgb": [r, g, b]}` and a long-lived token. On Linux the token lives in `.env.linux`, on Windows in `.env.windows`, both
   gitignored.
 - It sends on colour change, and at least every 5 s as a keepalive.
 - It never talks to the soundbar.

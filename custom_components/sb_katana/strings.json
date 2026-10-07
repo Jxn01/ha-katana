@@ -1,0 +1,87 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "bluetooth_confirm": {
+        "description": "Set up {name} ({address}) over Bluetooth? Home Assistant will hold the soundbar's control connection, so Creative's app cannot connect while it does (turn off \"Hold connection\" to let it in)."
+      },
+      "user": {
+        "data": { "address": "Soundbar" },
+        "description": "Pick the soundbar's Bluetooth control device (\"Control for MF8400\")."
+      }
+    },
+    "abort": {
+      "already_configured": "This soundbar is already set up.",
+      "no_devices_found": "No Katana V2X control device is in range of a connectable Bluetooth adapter.",
+      "not_supported": "This Bluetooth device is not a Katana V2X control channel."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "allow_unconfirmed": "Allow unconfirmed controls",
+          "stream_rate_hz": "Screen sync rate (writes per second)",
+          "stream_timeout_s": "Screen sync hand-over (seconds without frames before the lights go off)"
+        },
+        "data_description": {
+          "allow_unconfirmed": "Controls whose commands were decoded from Creative's app but not yet confirmed working by you are refused until this is on. Turn it on to run the live checklist."
+        }
+      }
+    }
+  },
+  "issues": {
+    "untested_firmware": {
+      "title": "Katana firmware is not the tested version",
+      "description": "The soundbar reports firmware {found}, but the integration was built against {tested}. Every write is refused until the commands are re-verified on this firmware; reads still work. Do not install firmware updates from Creative's app if you want to keep control from Home Assistant."
+    }
+  },
+  "services": {
+    "stream_frame": {
+      "name": "Stream frame",
+      "description": "Show one screen-sync colour (the PC uses the /api/sb_katana/stream endpoint instead, which records nothing).",
+      "fields": {
+        "rgb": { "name": "Colour", "description": "Red, green, blue, 0-255 each." },
+        "config_entry_id": { "name": "Soundbar", "description": "Only needed when more than one soundbar is set up." }
+      }
+    }
+  },
+  "entity": {
+    "light": { "lighting": { "name": "Lighting" } },
+    "switch": {
+      "screen_sync": { "name": "Screen sync" },
+      "hold_connection": { "name": "Hold connection" },
+      "scout_mode": { "name": "Scout Mode" },
+      "auto_switch_tv": { "name": "Auto switch to TV/HDMI" },
+      "equalizer": { "name": "Equalizer" },
+      "surround": { "name": "Surround" },
+      "crystalizer": { "name": "Crystalizer" },
+      "smart_volume": { "name": "Smart Volume" },
+      "dialog_plus": { "name": "Dialog+" },
+      "mic_smart_volume": { "name": "Microphone Smart Volume" },
+      "mic_equalizer": { "name": "Microphone Equalizer" },
+      "mic_focus": { "name": "Microphone Focus" }
+    },
+    "select": {
+      "output": { "name": "Output" },
+      "decoder": { "name": "Decoder" },
+      "eq_preset": { "name": "EQ preset" },
+      "smart_volume_mode": { "name": "Smart Volume mode" }
+    },
+    "number": {
+      "surround_level": { "name": "Surround level" },
+      "crystalizer_level": { "name": "Crystalizer level" },
+      "dialog_plus_level": { "name": "Dialog+ level" },
+      "smart_volume_level": { "name": "Smart Volume level" },
+      "line_in_level": { "name": "Line In level" },
+      "spdif_in_level": { "name": "SPDIF In level" },
+      "microphone_level": { "name": "Microphone level" },
+      "headphones_level": { "name": "Headphones level" },
+      "what_u_hear_level": { "name": "What U Hear level" },
+      "subwoofer": { "name": "Subwoofer" }
+    },
+    "sensor": { "firmware": { "name": "Firmware" } },
+    "binary_sensor": { "screen_sync_receiving": { "name": "Screen sync receiving" } },
+    "button": { "reread_state": { "name": "Re-read state" } }
+  }
+}
