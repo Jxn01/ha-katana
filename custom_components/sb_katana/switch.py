@@ -75,6 +75,18 @@ SWITCHES: tuple[KatanaSwitchDescription, ...] = (
         set_on=lambda d, on: d.set_store("acoustic", p.KEY_DIALOG_PLUS, float(on)),
     ),
     KatanaSwitchDescription(
+        key="energy_saving",
+        is_on=lambda d: d.state.energy_saving,
+        set_on=lambda d, on: d.set_energy_saving(on),
+        entity_category=EntityCategory.CONFIG,
+    ),
+    KatanaSwitchDescription(
+        key="cec_link",
+        is_on=lambda d: d.state.cec_link,
+        set_on=lambda d, on: d.set_cec_link(on),
+        entity_category=EntityCategory.CONFIG,
+    ),
+    KatanaSwitchDescription(
         key="mic_smart_volume",
         is_on=_dsp(p.DSP_MIC_SMART_VOLUME),
         set_on=lambda d, on: d.set_dsp(p.DSP_MIC_SMART_VOLUME, on),

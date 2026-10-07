@@ -36,7 +36,24 @@ async def test_states_after_read_back(hass, entry):
     assert state(hass, "select", "output").state == "Speakers"
     assert state(hass, "select", "decoder").state == "Full"
     assert state(hass, "select", "eq_preset").state == "Music"
-    assert state(hass, "select", "smart_volume_mode").state == "Mode 1"
+    assert state(hass, "select", "smart_volume_mode").state == "Manual"
+    assert state(hass, "select", "eq_preset").attributes["options"] == [
+        "Gaming",
+        "Music",
+        "Movies",
+        "Footsteps Enhancer",
+        "Flat",
+    ]
+    assert state(hass, "select", "mic_priority").state == "Auto"
+    assert state(hass, "select", "mic_eq_preset").state == "Off"
+    assert state(hass, "select", "auto_standby").state == "28 hours"
+    assert state(hass, "select", "display").state == "Bright"
+    assert state(hass, "switch", "energy_saving").state == "on"
+    assert state(hass, "switch", "cec_link").state == "on"
+    assert float(state(hass, "number", "eq_band_3").state) == -1.0
+    assert float(state(hass, "number", "eq_band_9").state) == 2.0
+    assert float(state(hass, "number", "mic_focus_angle").state) == 30.0
+    assert state(hass, "light", "lighting").attributes["brightness"] == 255
     assert state(hass, "number", "surround_level").state == "100"
     assert state(hass, "number", "crystalizer_level").state == "50"
     assert state(hass, "number", "dialog_plus_level").state == "0"
@@ -87,12 +104,67 @@ async def test_light_turn_on_colour_sends_solo_and_stops_screen_sync(hass, entry
     assert state(hass, "light", "lighting").attributes["rgb_color"] == (0, 0, 255)
 
 
-async def test_light_brightness_scales_the_colour(hass, entry, fake):
+@pytest.mark.parametrize("allow_unconfirmed", [True])
+async def test_light_brightness_is_the_soundbars_own(hass, entry, fake):
     before = len(fake.writes)
     await call(hass, "light", "turn_on", eid(hass, "light", "lighting"), rgb_color=(255, 0, 0), brightness=128)
-    assert fake.writes_since(before)[3] == p.solo_colour((128, 0, 0)).frame.hex()
+    sent = fake.writes_since(before)
+    assert p.solo_colour((255, 0, 0)).frame.hex() in sent  # the colour itself, unscaled
+    assert "5a3a022780" in sent  # Global Brightness 128
     light = state(hass, "light", "lighting")
     assert light.attributes["rgb_color"] == (255, 0, 0) and light.attributes["brightness"] == 128
+
+
+async def test_light_brightness_is_gated_until_confirmed(hass, entry, fake):
+    before = len(fake.writes)
+    with pytest.raises(HomeAssistantError, match="not been confirmed"):
+        await call(hass, "light", "turn_on", eid(hass, "light", "lighting"), brightness=128)
+    assert fake.writes_since(before) == []
+    assert state(hass, "switch", "screen_sync").state == "on"
+
+
+@pytest.mark.parametrize("allow_unconfirmed", [True])
+async def test_third_capture_entities_send_the_captured_bytes(hass, entry, fake):
+    cases = [
+        ("select", "select_option", "mic_priority", {"option": "Headset Microphone"}, "5a2d0405020100"),
+        ("select", "select_option", "auto_standby", {"option": "8 hours"}, "5a390a07110f000000d1010000"),
+        ("select", "select_option", "display", {"option": "Bright"}, "5a390407120700"),
+        ("switch", "turn_off", "energy_saving", {}, "5a3903001100"),
+        ("switch", "turn_on", "cec_link", {}, "5a3903001801"),
+        ("number", "set_value", "mic_focus_angle", {"value": 180}, "5a12070195080000" + "3443"),
+        (
+            "select",
+            "select_option",
+            "smart_volume_mode",
+            {"option": "Night"},
+            p.store_write(0, [(p.KEY_SMART_VOLUME_MODE, 2.0)]).frame.hex(),
+        ),
+    ]
+    for domain, service, key, data, first_frame in cases:
+        before = len(fake.writes)
+        await call(hass, domain, service, eid(hass, domain, key), **data)
+        assert fake.writes_since(before)[0] == first_frame, key
+
+
+@pytest.mark.parametrize("allow_unconfirmed", [True])
+async def test_eq_band_sends_all_ten_bands_after_the_custom_mark(hass, entry, fake):
+    before = len(fake.writes)
+    await call(hass, "number", "set_value", eid(hass, "number", "eq_band_4"), value=-6.0)
+    sent = fake.writes_since(before)
+    expected = p.eq_band_write(0, [0.0, 0.0, -1.0, -6.0, -1.0, 1.5, 1.5, 0.0, 2.0, 2.0])
+    assert sent[:2] == [c.frame.hex() for c in expected]
+    assert float(state(hass, "number", "eq_band_4").state) == -6.0
+
+
+@pytest.mark.parametrize("allow_unconfirmed", [True])
+async def test_mic_eq_preset_switches_it_on_then_writes_the_bands(hass, entry, fake):
+    from custom_components.sb_katana import captured
+
+    name = next(iter(captured.MIC_EQ_PRESETS))
+    before = len(fake.writes)
+    await call(hass, "select", "select_option", eid(hass, "select", "mic_eq_preset"), option=name)
+    sent = fake.writes_since(before)
+    assert sent[:2] == [p.dsp_write(p.DSP_MIC_EQ, 1.0).frame.hex(), captured.MIC_EQ_PRESETS[name]]
 
 
 async def test_light_turn_off(hass, entry, fake):

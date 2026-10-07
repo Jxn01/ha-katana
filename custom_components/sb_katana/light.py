@@ -1,4 +1,4 @@
-"""The light bar: on/off, solid colour (software brightness), and the app's nine presets.
+"""The light bar: on/off, solid colour, the soundbar's Global Brightness, and the app's nine presets.
 
 Two rules keep the recorder quiet (this HA has no recorder exclusions):
 
@@ -50,10 +50,6 @@ def split_brightness(rgb: tuple[int, int, int]) -> tuple[tuple[int, int, int], i
     return tuple(round(c * 255 / peak) for c in rgb), peak
 
 
-def apply_brightness(rgb: tuple[int, int, int], brightness: int) -> tuple[int, int, int]:
-    return tuple(max(0, min(255, round(c * brightness / 255))) for c in rgb)
-
-
 class KatanaLight(KatanaEntity, LightEntity):
     _attr_color_mode = ColorMode.RGB
     _attr_supported_color_modes: ClassVar[set[ColorMode]] = {ColorMode.RGB}
@@ -85,6 +81,9 @@ class KatanaLight(KatanaEntity, LightEntity):
         rgb, brightness = (None, None)
         if colours:
             rgb, brightness = split_brightness(colours[0])
+        if s.light_brightness is not None:
+            # The soundbar's own Global Brightness (3a 27/28); the colour shows the hue.
+            brightness = s.light_brightness
         effect = None
         if s.light_solid is False and s.light_name in LIGHT_PRESET_LABELS:
             effect = LIGHT_PRESET_LABELS[s.light_name]
@@ -153,23 +152,26 @@ class KatanaLight(KatanaEntity, LightEntity):
 
     async def _turn_on(self, **kwargs: Any) -> None:
         # Refuse before yielding Screen sync: a refused command must change nothing.
+        families = []
         if ATTR_EFFECT in kwargs:
-            self._device.check_gate("light_preset")
-        elif ATTR_RGB_COLOR in kwargs or ATTR_BRIGHTNESS in kwargs:
-            self._device.check_gate("light_solo")
-        else:
-            self._device.check_gate("light_power")
+            families.append("light_preset")
+        elif ATTR_RGB_COLOR in kwargs:
+            families.append("light_solo")
+        if ATTR_BRIGHTNESS in kwargs:
+            families.append("light_brightness")
+        if not families or not self._device.state.light_on:
+            families.append("light_power")
+        for family in families:
+            self._device.check_gate(family)
         self._stream.manual_override()
         if ATTR_EFFECT in kwargs:
             await self._device.light_preset(_LABEL_TO_PRESET.get(kwargs[ATTR_EFFECT], kwargs[ATTR_EFFECT]))
-            return
-        if ATTR_RGB_COLOR in kwargs or ATTR_BRIGHTNESS in kwargs:
-            current_rgb, current_brightness, _ = self._live()
-            rgb = kwargs.get(ATTR_RGB_COLOR) or (current_rgb if current_rgb and any(current_rgb) else (255, 255, 255))
-            brightness = kwargs.get(ATTR_BRIGHTNESS, current_brightness or 255)
-            await self._device.light_solo(apply_brightness(tuple(rgb), brightness))
-            return
-        await self._device.light_on_off(True)
+        elif ATTR_RGB_COLOR in kwargs:
+            await self._device.light_solo(tuple(kwargs[ATTR_RGB_COLOR]))  # also switches the lights on
+        elif not self._device.state.light_on:
+            await self._device.light_on_off(True)
+        if ATTR_BRIGHTNESS in kwargs:
+            await self._device.set_light_brightness(kwargs[ATTR_BRIGHTNESS])
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         self._commanding = True

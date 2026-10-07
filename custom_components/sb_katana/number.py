@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription, NumberMode
-from homeassistant.const import PERCENTAGE, UnitOfSoundPressure
+from homeassistant.const import DEGREE, PERCENTAGE, UnitOfSoundPressure
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -88,6 +88,30 @@ NUMBERS: tuple[KatanaNumberDescription, ...] = (
     # Reported not working (2026-10-07); headphones are not used here, so hidden by default.
     _mixer("headphones_level", "headphones_level", p.CH_HEADPHONES, enabled=False),
     _mixer("what_u_hear_level", "what_u_hear", p.CH_WHAT_U_HEAR),
+    *(
+        KatanaNumberDescription(
+            key=f"eq_band_{band}",
+            translation_placeholders={"band": label},
+            native_min_value=-p.EQ_GAIN_LIMIT,
+            native_max_value=p.EQ_GAIN_LIMIT,
+            native_step=0.5,
+            native_unit_of_measurement=UnitOfSoundPressure.DECIBEL,
+            mode=NumberMode.SLIDER,
+            value=lambda d, band=band: d.state.eq_values.get(d.state.store_sub, {}).get(band),
+            set_value=lambda d, v, band=band: d.set_eq_band(band, v),
+        )
+        for band, label in zip(p.EQ_BANDS, p.EQ_BAND_LABELS, strict=True)
+    ),
+    KatanaNumberDescription(
+        key="mic_focus_angle",
+        native_min_value=p.FOCUS_ANGLE_MIN,
+        native_max_value=p.FOCUS_ANGLE_MAX,
+        native_step=1,
+        native_unit_of_measurement=DEGREE,
+        mode=NumberMode.SLIDER,
+        value=lambda d: d.state.dsp.get(p.DSP_MIC_FOCUS_ANGLE),
+        set_value=lambda d, v: d.set_focus_angle(v),
+    ),
     KatanaNumberDescription(
         key="subwoofer",
         native_min_value=p.SUB_MIN,
@@ -113,6 +137,9 @@ class KatanaNumber(KatanaEntity, NumberEntity):
     def __init__(self, entry: KatanaConfigEntry, description: KatanaNumberDescription) -> None:
         super().__init__(entry, description.key)
         self.entity_description = description
+        if description.key.startswith("eq_band_"):
+            # One translation for all ten bands, with the frequency as a placeholder.
+            self._attr_translation_key = "eq_band"
 
     @property
     def native_value(self) -> float | None:

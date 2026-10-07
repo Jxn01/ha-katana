@@ -60,8 +60,9 @@ SAMPLES = {
     "store_write": [(sub, [(k, lo), (k, hi)]) for sub in (0, 2) for k, (lo, hi) in protocol.STORE_WRITABLE.items()]
     + [(0, [(protocol.KEY_EQ_SLOT, 0)])],
     "eq_name_query": [(0,), (2,)],
-    "dsp_query": [(protocol.DSP_READ_IDS,)],
-    "dsp_write": [(pid, v) for pid in protocol.DSP_WRITABLE for v in (0.0, 1.0)],
+    "dsp_query": [(protocol.DSP_READ_IDS,), (protocol.DSP_READ_IDS_2,)],
+    "dsp_write": [(pid, v) for pid in protocol.DSP_WRITABLE for v in (0.0, 1.0)]
+    + [(protocol.DSP_MIC_FOCUS_ANGLE, a) for a in (protocol.FOCUS_ANGLE_MIN, 90.0, protocol.FOCUS_ANGLE_MAX)],
     "light_power": [(True,), (False,)],
     "light_power_query": [()],
     "light_mode_query": [()],
@@ -70,7 +71,20 @@ SAMPLES = {
     "light_map_query": [()],
     "solo_prepare": [()],
     "solo_colour": [((0, 0, 0),), ((255, 255, 255),), ((0x5A, 0x53, 0x54),)],
-    "captured_sequence": [(seq,) for seq in (*captured.LIGHTING_PRESETS.values(), *captured.EQ_PRESETS.values())],
+    "light_brightness": [(0,), (128,), (255,)],
+    "light_brightness_query": [()],
+    "eq_values_queries": [(0,), (2,)],
+    "eq_band_write": [(sub, [g] * 10) for sub in (0, 2) for g in (-9.0, 0.0, 9.0)],
+    "mic_priority_query": [()],
+    "set_mic_priority": [(ids,) for ids in protocol.MIC_PRIORITY_OPTIONS.values()],
+    "settings_query": [()],
+    "auto_standby_query": [()],
+    "display_query": [()],
+    "set_setting": [(s, b) for s in (protocol.SETTING_ENERGY_SAVING, protocol.SETTING_CEC_LINK) for b in (True, False)],
+    "set_auto_standby": [(m,) for m in protocol.AUTO_STANDBY_OPTIONS.values()],
+    "set_display": [(c,) for c in protocol.DISPLAY_OPTIONS.values()],
+    "captured_sequence": [(seq,) for seq in (*captured.LIGHTING_PRESETS.values(), *captured.EQ_PRESETS.values())]
+    + [((h,),) for h in captured.MIC_EQ_PRESETS.values()],
 }
 
 

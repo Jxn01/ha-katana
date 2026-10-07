@@ -41,6 +41,8 @@ OP_PING = 0x03
 OP_INFO = 0x09
 OP_DSP_READ = 0x11
 OP_DSP_WRITE = 0x12
+OP_MIC_PRIORITY = 0x2D
+OP_SETTINGS = 0x39
 OP_LEVEL = 0x23
 OP_MUTE = 0x24
 OP_SCOUT = 0x26
@@ -144,10 +146,52 @@ DECODER_LABELS: dict[int, str] = {2: "Normal", 1: "Full", 3: "Night"}
 DSP_MIC_SMART_VOLUME = 0x952C
 DSP_MIC_EQ = 0x9513
 DSP_MIC_FOCUS = 0x9506
+DSP_MIC_FOCUS_ANGLE = 0x9508
+DSP_MIC_EQ_BANDS = tuple(range(0x9514, 0x951C))  # 8 bands, 62.5 Hz .. 8 kHz
 DSP_READ_IDS = (DSP_MIC_SMART_VOLUME, DSP_MIC_EQ, DSP_MIC_FOCUS)
-# Only the CrystalVoice switches the app writes through 0x12, each 0.0 or 1.0.
+DSP_READ_IDS_2 = (DSP_MIC_FOCUS_ANGLE, *DSP_MIC_EQ_BANDS)
+# The CrystalVoice switches the app writes through 0x12, each 0.0 or 1.0 ...
 DSP_WRITABLE = frozenset(DSP_READ_IDS)
+# ... the Focus wedge angle (the app's slider runs 20-180 degrees) ...
+FOCUS_ANGLE_MIN, FOCUS_ANGLE_MAX = 20.0, 180.0
+# ... and an 8-band microphone EQ preset, all eight bands in one frame.
+MIC_EQ_GAIN_LIMIT = 12.0
 DSP_MAX_PER_READ = 9
+
+# Main EQ (0xA8 store): index 00 preamp, 01-0a the ten bands 31 Hz .. 16 kHz,
+# 0b bass, 0c treble. A band drag writes all ten bands to the live slot.
+EQ_BANDS = tuple(range(0x01, 0x0B))
+EQ_BAND_LABELS = ("31 Hz", "62 Hz", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz", "16 kHz")
+EQ_GAIN_LIMIT = 9.0
+EQ_PREAMP = 0x00
+
+# Microphone priority (0x2D): a priority list of microphone sources. Which list is
+# which label is inferred (2026-10-07 capture: three taps, no readback) -- probable.
+MIC_PRIORITY_OPTIONS: dict[str, tuple[int, ...]] = {
+    "Auto": (0x00, 0x01),
+    "Headset Microphone": (0x01, 0x00),
+    "Microphone Array": (),
+}
+
+# Device settings (0x39). Auto standby is stored as minutes beyond the fixed
+# 15-minute network-standby delay (8 h -> 465), 0 = never.
+SETTING_ENERGY_SAVING = 0x11
+SETTING_CEC_LINK = 0x18
+SETTING_DISPLAY = 0x12
+NETWORK_STANDBY_MINUTES = 15
+AUTO_STANDBY_OPTIONS: dict[str, int] = {
+    "28 hours": 28 * 60 - 15,
+    "8 hours": 8 * 60 - 15,
+    "2 hours": 2 * 60 - 15,
+    "1 hour": 60 - 15,
+    "30 minutes": 30 - 15,
+    "Never": 0,
+}
+# Bright is certain (the first capture's readback); Dark and Off follow the tap order.
+DISPLAY_OPTIONS: dict[str, tuple[int, int]] = {"Bright": (0x07, 0x00), "Dark": (0x02, 0x00), "Off": (0x02, 0x05)}
+
+LIGHT_SUB_BRIGHTNESS = 0x27
+LIGHT_SUB_BRIGHTNESS_QUERY = 0x28
 
 # Lighting (0x3A). The live configuration is slot 00.
 LIGHT_SUB_POWER = 0x25
@@ -194,9 +238,19 @@ ALLOWED_TX: frozenset[tuple[int, int | None]] = frozenset(
         (OP_MODE, 0x13),
         (OP_EQ, 0x05),
         (OP_EQ, 0x06),
+        (OP_EQ, 0x11),
         (OP_EQ, 0x0B),
         (OP_EQ, 0x10),
         (OP_DSP_WRITE, 0x01),
+        (OP_DSP_WRITE, 0x08),
+        (OP_MIC_PRIORITY, 0x01),
+        (OP_MIC_PRIORITY, 0x05),
+        (OP_SETTINGS, 0x00),
+        (OP_SETTINGS, 0x01),
+        (OP_SETTINGS, 0x06),
+        (OP_SETTINGS, 0x07),
+        (OP_LIGHT, LIGHT_SUB_BRIGHTNESS),
+        (OP_LIGHT, LIGHT_SUB_BRIGHTNESS_QUERY),
         *((OP_DSP_READ, n) for n in range(1, DSP_MAX_PER_READ + 1)),
         (OP_LIGHT, LIGHT_SUB_POWER),
         (OP_LIGHT, LIGHT_SUB_POWER_QUERY),
@@ -296,17 +350,56 @@ def _check_payload(op: int, payload: bytes) -> None:
         need(len(payload) == 2 and payload[1] in MODE_SLOTS, "mode slot")
     elif op == OP_MODE and sub == 0x12:
         _check_store_write(payload, need)
+    elif op == OP_EQ and sub == 0x0B and payload[1:3] == b"\x00\x00":
+        # Mark the live EQ custom before a band edit: "0b 00 00 <sub> <16 zero bytes>".
+        need(len(payload) == 20 and payload[3] in (0, 2) and payload[4:] == bytes(16), "EQ custom-mark shape")
+    elif op == OP_EQ and sub == 0x10 and payload[1:3] == b"\x00\x00":
+        _check_eq_band_write(payload, need)
     elif op == OP_EQ and sub in (0x05, 0x0B, 0x10):
-        # Only ever a captured preset load into the live EQ: "<sub> 00 ff <00|02> ...".
+        # Otherwise only ever a captured preset load into the live EQ: "<sub> 00 ff <00|02> ...".
         need(len(payload) >= 4 and payload[1:3] == b"\x00\xff" and payload[3] in (0, 2), "EQ live-load shape")
+    elif op == OP_DSP_WRITE and sub == 0x08:
+        need(len(payload) == 1 + 8 * 6, "mic EQ preset shape")
+        entries = [payload[1 + 6 * i : 7 + 6 * i] for i in range(8)]
+        need({struct.unpack(">H", e[:2])[0] for e in entries} == set(DSP_MIC_EQ_BANDS), "mic EQ band ids")
+        need(all(abs(struct.unpack("<f", e[2:])[0]) <= MIC_EQ_GAIN_LIMIT for e in entries), "mic EQ gain range")
     elif op == OP_DSP_WRITE:
         need(len(payload) == 7, "DSP write shape")
-        need(struct.unpack(">H", payload[1:3])[0] in DSP_WRITABLE, "DSP id not writable")
-        need(struct.unpack("<f", payload[3:7])[0] in (0.0, 1.0), "DSP value")
+        pid, value = struct.unpack(">H", payload[1:3])[0], struct.unpack("<f", payload[3:7])[0]
+        if pid == DSP_MIC_FOCUS_ANGLE:
+            need(FOCUS_ANGLE_MIN <= value <= FOCUS_ANGLE_MAX, "focus angle range")
+        else:
+            need(pid in DSP_WRITABLE, "DSP id not writable")
+            need(value in (0.0, 1.0), "DSP value")
+    elif op == OP_MIC_PRIORITY and sub == 0x05:
+        need(
+            tuple(payload[2:]) in MIC_PRIORITY_OPTIONS.values() and payload[1] == len(payload) - 2, "mic priority list"
+        )
+    elif op == OP_SETTINGS and sub == 0x00:
+        need(len(payload) == 3 and payload[1] in (SETTING_ENERGY_SAVING, SETTING_CEC_LINK), "setting id")
+        need(payload[2] in (0, 1), "setting value")
+    elif op == OP_SETTINGS and sub == 0x07:
+        if payload[1:2] == bytes([SETTING_ENERGY_SAVING]):
+            need(len(payload) == 10 and payload[2:6] == struct.pack("<I", NETWORK_STANDBY_MINUTES), "standby shape")
+            need(struct.unpack("<I", payload[6:10])[0] in AUTO_STANDBY_OPTIONS.values(), "auto standby value")
+        else:
+            need(len(payload) == 4 and payload[1] == SETTING_DISPLAY, "display shape")
+            need(tuple(payload[2:4]) in DISPLAY_OPTIONS.values(), "display value")
+    elif op == OP_LIGHT and sub == LIGHT_SUB_BRIGHTNESS:
+        need(len(payload) == 2, "brightness shape")
     elif op == OP_DSP_READ:
         need(len(payload) == 1 + 2 * payload[0], "DSP read shape")
     elif op == OP_LIGHT and sub == LIGHT_SUB_POWER:
         need(len(payload) == 2 and payload[1] in (0, 1), "lighting power value")
+
+
+def _check_eq_band_write(payload: bytes, need) -> None:
+    """``10 00 00 <sub> 0a`` then the ten bands 01..0a in order, each within +/-9 dB (the app's range)."""
+    need(len(payload) == 5 + 10 * 5 and payload[3] in (0, 2) and payload[4] == 10, "EQ band write shape")
+    for i, band in enumerate(EQ_BANDS):
+        entry = payload[5 + 5 * i : 10 + 5 * i]
+        need(entry[0] == band, "EQ band order")
+        need(abs(struct.unpack("<f", entry[1:5])[0]) <= EQ_GAIN_LIMIT, "EQ band gain range")
 
 
 def _check_store_write(payload: bytes, need) -> None:
@@ -456,6 +549,69 @@ def eq_name_query(sub: int) -> Command:
 
 
 # --- live DSP -------------------------------------------------------------------------
+
+
+def eq_values_queries(sub: int) -> list[Command]:
+    """The app's two reads of a whole EQ: indices 00-09, then 0a-0c."""
+    first = _cmd(
+        OP_EQ, 0x11, 0x00, LIVE_SLOT, sub, 10, *range(0, 10), reply_prefix=bytes([0x11, 0x00, LIVE_SLOT, sub, 10])
+    )
+    second = _cmd(
+        OP_EQ, 0x11, 0x00, LIVE_SLOT, sub, 3, 0x0A, 0x0B, 0x0C, reply_prefix=bytes([0x11, 0x00, LIVE_SLOT, sub, 3])
+    )
+    return [first, second]
+
+
+def eq_band_write(sub: int, gains: list[float]) -> list[Command]:
+    """A band edit as the app sends it: mark the live EQ custom, then all ten bands."""
+    if len(gains) != len(EQ_BANDS):
+        raise ValueError("ten band gains are needed")
+    mark = Command(encode(OP_EQ, bytes([0x0B, 0x00, LIVE_SLOT, sub]) + bytes(16)), ack=True)
+    body = bytearray([0x10, 0x00, LIVE_SLOT, sub, len(EQ_BANDS)])
+    for band, gain in zip(EQ_BANDS, gains, strict=True):
+        body += bytes([band]) + struct.pack("<f", float(gain))
+    return [mark, Command(encode(OP_EQ, bytes(body)), ack=True)]
+
+
+def mic_priority_query() -> Command:
+    return _cmd(OP_MIC_PRIORITY, 0x01)
+
+
+def set_mic_priority(sources: tuple[int, ...]) -> Command:
+    return _cmd(OP_MIC_PRIORITY, 0x05, len(sources), *sources, ack=True)
+
+
+def settings_query() -> Command:
+    return _cmd(OP_SETTINGS, 0x01)
+
+
+def auto_standby_query() -> Command:
+    return _cmd(OP_SETTINGS, 0x06, SETTING_ENERGY_SAVING)
+
+
+def display_query() -> Command:
+    return _cmd(OP_SETTINGS, 0x06, SETTING_DISPLAY)
+
+
+def set_setting(setting: int, on: bool) -> Command:
+    return _cmd(OP_SETTINGS, 0x00, setting, int(on), ack=True)
+
+
+def set_auto_standby(extra_minutes: int) -> Command:
+    body = bytes([0x07, SETTING_ENERGY_SAVING]) + struct.pack("<II", NETWORK_STANDBY_MINUTES, extra_minutes)
+    return Command(encode(OP_SETTINGS, body), ack=True)
+
+
+def set_display(code: tuple[int, int]) -> Command:
+    return _cmd(OP_SETTINGS, 0x07, SETTING_DISPLAY, *code, ack=True)
+
+
+def light_brightness(level: int) -> Command:
+    return _cmd(OP_LIGHT, LIGHT_SUB_BRIGHTNESS, max(0, min(255, int(level))), ack=True)
+
+
+def light_brightness_query() -> Command:
+    return _cmd(OP_LIGHT, LIGHT_SUB_BRIGHTNESS_QUERY)
 
 
 def dsp_query(ids: tuple[int, ...]) -> Command:
@@ -680,6 +836,44 @@ def parse_store(frame: Frame) -> tuple[int, int, dict[tuple[int, int], float | i
         else:
             values[key] = struct.unpack("<f", entry[2:6])[0]
     return slot, sub, values
+
+
+def parse_eq_values(frame: Frame) -> tuple[int, int, dict[int, float]]:
+    """``11 00 slot sub n (idx f32)...`` -> (slot, sub, {idx: dB})."""
+    p = _expect(frame, OP_EQ, b"\x11\x00", 5)
+    values: dict[int, float] = {}
+    for i in range(p[4]):
+        entry = p[5 + 5 * i : 10 + 5 * i]
+        if len(entry) < 5:
+            break
+        values[entry[0]] = struct.unpack("<f", entry[1:5])[0]
+    return p[2], p[3], values
+
+
+def parse_mic_priority(frame: Frame) -> tuple[int, ...]:
+    p = _expect(frame, OP_MIC_PRIORITY, b"\x01", 2)
+    return tuple(p[2 : 2 + p[1]])
+
+
+def parse_settings(frame: Frame) -> tuple[bool, bool]:
+    """``01 00 00 <flags> <cec>`` -> (energy saving, HDMI CEC standby link). Bit 0x02 of flags is
+    energy saving: it cleared and returned with the app's Off/On (2026-10-07)."""
+    p = _expect(frame, OP_SETTINGS, b"\x01", 5)
+    return bool(p[3] & 0x02), bool(p[4])
+
+
+def parse_auto_standby(frame: Frame) -> int:
+    p = _expect(frame, OP_SETTINGS, bytes([0x06, SETTING_ENERGY_SAVING]), 10)
+    return struct.unpack("<I", p[6:10])[0]
+
+
+def parse_display(frame: Frame) -> tuple[int, int]:
+    p = _expect(frame, OP_SETTINGS, bytes([0x06, SETTING_DISPLAY]), 4)
+    return p[2], p[3]
+
+
+def parse_light_brightness(frame: Frame) -> int:
+    return _expect(frame, OP_LIGHT, bytes([LIGHT_SUB_BRIGHTNESS_QUERY]), 2)[1]
 
 
 def parse_eq_name(frame: Frame) -> tuple[int, int, str]:

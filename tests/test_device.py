@@ -29,7 +29,15 @@ async def test_read_back_populates_every_field():
     assert s.store[0][p.KEY_CRYSTALIZER_LEVEL] == 0.5 and s.store[2][p.KEY_SURROUND_LEVEL] == 0.5
     assert s.store[0][p.KEY_EQ_SLOT] == 1
     assert s.eq_names == {0: "Music", 2: "Music"}
-    assert s.dsp == {0x952C: 1.0, 0x9513: 0.0, 0x9506: 1.0}
+    assert {k: s.dsp[k] for k in (0x952C, 0x9513, 0x9506, 0x9508)} == {
+        0x952C: 1.0,
+        0x9513: 0.0,
+        0x9506: 1.0,
+        0x9508: 30.0,
+    }
+    assert s.eq_values[0][3] == -1.0 and s.eq_values[0][9] == 2.0 and set(p.EQ_BANDS) <= set(s.eq_values[2])
+    assert (s.light_brightness, s.mic_priority, s.energy_saving, s.cec_link) == (255, (0, 1), True, True)
+    assert (s.auto_standby, s.display) == (1665, (0x07, 0x00))
     assert (s.light_on, s.light_mode, s.light_name, s.light_solid) == (True, 3, "Onboard", True)
     assert s.light_colours[1] == (4, 120, 3)
     assert device.available and device.firmware_ok
@@ -56,7 +64,19 @@ async def test_confirmed_families_match_the_owners_checklist():
     from custom_components.sb_katana.families import FAMILIES
 
     unconfirmed = {key for key, family in FAMILIES.items() if not family.confirmed}
-    assert unconfirmed == {"headphones_level"}
+    assert unconfirmed == {
+        "headphones_level",
+        # third capture, not yet tried from HA:
+        "light_brightness",
+        "eq_bands",
+        "focus_angle",
+        "energy_saving",
+        "auto_standby",
+        "cec_link",
+        "mic_priority",
+        "mic_eq_preset",
+        "display",
+    }
 
 
 async def test_unconfirmed_family_allowed_when_opted_in():

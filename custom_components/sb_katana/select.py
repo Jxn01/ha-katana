@@ -2,22 +2,26 @@
 
 from __future__ import annotations
 
+import struct
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import KatanaConfigEntry
+from . import KatanaConfigEntry, captured
 from . import protocol as p
 from .device import KatanaDevice
 from .entity import KatanaEntity
 from .families import EQ_PRESET_LABELS
 
 _EQ_LABEL_TO_NAME = {label: name for name, label in EQ_PRESET_LABELS.items()}
-_SMART_VOLUME_MODES = {"Mode 1": 0, "Mode 2": 1, "Mode 3": 2}
+# 0 = the level slider, 1 = Loud, 2 = Night (third capture: the app's Night/Loud buttons).
+_SMART_VOLUME_MODES = {"Manual": 0, "Loud": 1, "Night": 2}
+_MIC_EQ_OFF = "Off"
 _DECODER_CODES = {label: code for code, label in p.DECODER_LABELS.items()}
 
 
@@ -34,8 +38,69 @@ def _decoder(device: KatanaDevice) -> str | None:
     return None if value is None else p.DECODER_LABELS.get(round(value))
 
 
+def _eq_live_name(device: KatanaDevice) -> str | None:
+    return device.state.eq_names.get(device.state.store_sub)
+
+
 def _eq_preset(device: KatanaDevice) -> str | None:
-    return EQ_PRESET_LABELS.get(device.state.eq_names.get(device.state.store_sub, ""))
+    name = _eq_live_name(device)
+    return None if name is None else EQ_PRESET_LABELS.get(name, name)
+
+
+def _eq_options(device: KatanaDevice) -> list[str]:
+    """The captured presets, plus the live EQ's own name ("Onboard" once edited) while it is none of them."""
+    options = list(_EQ_LABEL_TO_NAME)
+    current = _eq_preset(device)
+    if current and current not in options:
+        options.append(current)
+    return options
+
+
+async def _choose_eq(device: KatanaDevice, label: str) -> None:
+    if label not in _EQ_LABEL_TO_NAME:
+        return  # the live EQ itself: already active, nothing to send
+    await device.eq_preset(_EQ_LABEL_TO_NAME[label])
+
+
+def _mic_priority(device: KatanaDevice) -> str | None:
+    current = device.state.mic_priority
+    return next((label for label, ids in p.MIC_PRIORITY_OPTIONS.items() if ids == current), None)
+
+
+def _mic_eq(device: KatanaDevice) -> str | None:
+    enabled = device.state.dsp.get(p.DSP_MIC_EQ)
+    if enabled is None:
+        return None
+    if not enabled:
+        return _MIC_EQ_OFF
+    bands = [device.state.dsp.get(pid) for pid in p.DSP_MIC_EQ_BANDS]
+    if any(b is None for b in bands):
+        return None
+    for name, hexframe in captured.MIC_EQ_PRESETS.items():
+        payload = bytes.fromhex(hexframe)[3:]
+        preset = {
+            struct.unpack(">H", payload[1 + 6 * i : 3 + 6 * i])[0]: struct.unpack("<f", payload[3 + 6 * i : 7 + 6 * i])[
+                0
+            ]
+            for i in range(8)
+        }
+        if all(abs(preset[pid] - value) < 0.01 for pid, value in zip(p.DSP_MIC_EQ_BANDS, bands, strict=True)):
+            return name
+    return None
+
+
+async def _choose_mic_eq(device: KatanaDevice, label: str) -> None:
+    await device.mic_eq_preset(None if label == _MIC_EQ_OFF else label)
+
+
+def _auto_standby(device: KatanaDevice) -> str | None:
+    value = device.state.auto_standby
+    return next((label for label, minutes in p.AUTO_STANDBY_OPTIONS.items() if minutes == value), None)
+
+
+def _display(device: KatanaDevice) -> str | None:
+    value = device.state.display
+    return next((label for label, code in p.DISPLAY_OPTIONS.items() if code == value), None)
 
 
 def _smart_volume_mode(device: KatanaDevice) -> str | None:
@@ -102,9 +167,36 @@ SELECTS: tuple[KatanaSelectDescription, ...] = (
     ),
     KatanaSelectDescription(
         key="eq_preset",
-        options=list(_EQ_LABEL_TO_NAME),
+        options=[],
+        options_fn=_eq_options,
         current=_eq_preset,
-        choose=lambda d, o: d.eq_preset(_EQ_LABEL_TO_NAME[o]),
+        choose=_choose_eq,
+    ),
+    KatanaSelectDescription(
+        key="mic_priority",
+        options=list(p.MIC_PRIORITY_OPTIONS),
+        current=_mic_priority,
+        choose=lambda d, o: d.set_mic_priority(p.MIC_PRIORITY_OPTIONS[o]),
+    ),
+    KatanaSelectDescription(
+        key="mic_eq_preset",
+        options=[_MIC_EQ_OFF, *captured.MIC_EQ_PRESETS],
+        current=_mic_eq,
+        choose=_choose_mic_eq,
+    ),
+    KatanaSelectDescription(
+        key="auto_standby",
+        options=list(p.AUTO_STANDBY_OPTIONS),
+        current=_auto_standby,
+        choose=lambda d, o: d.set_auto_standby(p.AUTO_STANDBY_OPTIONS[o]),
+        entity_category=EntityCategory.CONFIG,
+    ),
+    KatanaSelectDescription(
+        key="display",
+        options=list(p.DISPLAY_OPTIONS),
+        current=_display,
+        choose=lambda d, o: d.set_display(p.DISPLAY_OPTIONS[o]),
+        entity_category=EntityCategory.CONFIG,
     ),
     KatanaSelectDescription(
         key="smart_volume_mode",

@@ -18,6 +18,14 @@ def auto_enable_custom_integrations(enable_custom_integrations):
     return
 
 
+@pytest.fixture(autouse=True)
+def short_reply_timeout(monkeypatch):
+    """A read the fake does not answer must fail fast, not stall the suite on 2 s timeouts."""
+    from custom_components.sb_katana import device
+
+    monkeypatch.setattr(device, "REPLY_TIMEOUT", 0.2)
+
+
 @pytest.fixture
 def fake() -> FakeKatana:
     return FakeKatana()

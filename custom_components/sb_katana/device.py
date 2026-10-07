@@ -79,7 +79,14 @@ class KatanaState:
     mode_live_name: str | None = None  # the live copy's own name ("Onboard" once edited live)
     store: dict[int, StoreValues] = field(default_factory=dict)  # live slot, keyed by sub
     eq_names: dict[int, str] = field(default_factory=dict)  # live EQ name, keyed by sub
+    eq_values: dict[int, dict[int, float]] = field(default_factory=dict)  # live EQ: sub -> index -> dB
     dsp: dict[int, float] = field(default_factory=dict)
+    light_brightness: int | None = None
+    mic_priority: tuple[int, ...] | None = None
+    energy_saving: bool | None = None
+    cec_link: bool | None = None
+    auto_standby: int | None = None
+    display: tuple[int, int] | None = None
     light_on: bool | None = None
     light_mode: int | None = None
     light_colours: list[tuple[int, int, int]] | None = None
@@ -171,6 +178,20 @@ def apply_frame(state: KatanaState, raw: bytes) -> bool:
             slot, sub, values = p.parse_store(frame)
             if slot == p.LIVE_SLOT:
                 state.store.setdefault(sub, {}).update(values)
+        elif op == p.OP_EQ and pl[:2] == b"\x11\x00":
+            slot, sub, values = p.parse_eq_values(frame)
+            if slot == p.LIVE_SLOT:
+                state.eq_values.setdefault(sub, {}).update(values)
+        elif op == p.OP_LIGHT and pl[:1] == bytes([p.LIGHT_SUB_BRIGHTNESS_QUERY]):
+            state.light_brightness = p.parse_light_brightness(frame)
+        elif op == p.OP_MIC_PRIORITY and pl[:1] == b"\x01":
+            state.mic_priority = p.parse_mic_priority(frame)
+        elif op == p.OP_SETTINGS and pl[:1] == b"\x01" and len(pl) == 5:
+            state.energy_saving, state.cec_link = p.parse_settings(frame)
+        elif op == p.OP_SETTINGS and pl[:2] == bytes([0x06, p.SETTING_ENERGY_SAVING]):
+            state.auto_standby = p.parse_auto_standby(frame)
+        elif op == p.OP_SETTINGS and pl[:2] == bytes([0x06, p.SETTING_DISPLAY]):
+            state.display = p.parse_display(frame)
         elif op == p.OP_EQ and pl[:2] == b"\x06\x00":
             slot, sub, name = p.parse_eq_name(frame)
             if slot == p.LIVE_SLOT:
@@ -494,7 +515,9 @@ class KatanaDevice:
         plan += [p.mode_name_query(slot) for slot in (p.LIVE_SLOT, *p.MODE_SLOTS)]
         plan += self._store_reads(p.STORE_SUB_SPEAKERS) + self._store_reads(p.STORE_SUB_HEADPHONES)
         plan += [p.eq_name_query(p.STORE_SUB_SPEAKERS), p.eq_name_query(p.STORE_SUB_HEADPHONES)]
-        plan += [p.dsp_query(p.DSP_READ_IDS)]
+        plan += [p.dsp_query(p.DSP_READ_IDS), p.dsp_query(p.DSP_READ_IDS_2)]
+        plan += [*p.eq_values_queries(p.STORE_SUB_SPEAKERS), *p.eq_values_queries(p.STORE_SUB_HEADPHONES)]
+        plan += [p.mic_priority_query(), p.settings_query(), p.auto_standby_query(), p.display_query()]
         plan += self._light_reads()
         return plan
 
@@ -523,6 +546,21 @@ class KatanaDevice:
                 reads.append(p.eq_name_query(sub))
         if not set(p.DSP_READ_IDS) <= set(s.dsp):
             reads.append(p.dsp_query(p.DSP_READ_IDS))
+        if not set(p.DSP_READ_IDS_2) <= set(s.dsp):
+            reads.append(p.dsp_query(p.DSP_READ_IDS_2))
+        for sub in (p.STORE_SUB_SPEAKERS, p.STORE_SUB_HEADPHONES):
+            if not set(p.EQ_BANDS) <= set(s.eq_values.get(sub, {})):
+                reads += p.eq_values_queries(sub)
+        if s.mic_priority is None:
+            reads.append(p.mic_priority_query())
+        if s.energy_saving is None or s.cec_link is None:
+            reads.append(p.settings_query())
+        if s.auto_standby is None:
+            reads.append(p.auto_standby_query())
+        if s.display is None:
+            reads.append(p.display_query())
+        if s.light_brightness is None:
+            reads.append(p.light_brightness_query())
         if s.light_colours is None or s.light_mode is None or s.light_name is None or s.light_solid is None:
             reads += self._light_reads()
         return reads
@@ -535,6 +573,7 @@ class KatanaDevice:
     def _light_reads() -> list[p.Command]:
         return [
             p.light_power_query(),
+            p.light_brightness_query(),
             p.light_mode_query(),
             p.light_colours_query(),
             p.light_name_query(),
@@ -740,9 +779,129 @@ class KatanaDevice:
         await self._reread(self._light_reads())
         self._notify()
 
+    async def set_light_brightness(self, level: int) -> None:
+        level = max(0, min(255, int(level)))
+        await self.send(
+            "light_brightness",
+            [p.light_brightness(level)],
+            reread=[p.light_brightness_query()],
+            forget=lambda: setattr(self.state, "light_brightness", None),
+        )
+        self.state.light_brightness = level
+        self._notify()
+
+    async def set_eq_band(self, band: int, gain: float) -> None:
+        """Change one band. The app always sends all ten, so the other nine must be known."""
+        if self.state.output is None:
+            raise KatanaCommandError("the current output is unknown, so it is unclear which side to change")
+        sub = self.state.store_sub
+        current = self.state.eq_values.get(sub, {})
+        if not set(p.EQ_BANDS) <= set(current):
+            raise KatanaCommandError("the current EQ bands are unknown; re-read state first")
+        gain = max(-p.EQ_GAIN_LIMIT, min(p.EQ_GAIN_LIMIT, float(gain)))
+        gains = [gain if b == band else current[b] for b in p.EQ_BANDS]
+        await self.send(
+            "eq_bands",
+            p.eq_band_write(sub, gains),
+            reread=[*p.eq_values_queries(sub), p.eq_name_query(sub)],
+            forget=lambda: self.state.eq_values.pop(sub, None),
+        )
+        self.state.eq_values.setdefault(sub, {})[band] = gain
+        # Marked custom: the live EQ no longer carries a preset's name.
+        await self._reread([p.eq_name_query(sub)])
+        self._notify()
+
+    async def set_focus_angle(self, degrees: float) -> None:
+        degrees = max(p.FOCUS_ANGLE_MIN, min(p.FOCUS_ANGLE_MAX, float(degrees)))
+        await self.send(
+            "focus_angle",
+            [p.dsp_write(p.DSP_MIC_FOCUS_ANGLE, degrees)],
+            reread=[p.dsp_query(p.DSP_READ_IDS_2)],
+            forget=lambda: self.state.dsp.pop(p.DSP_MIC_FOCUS_ANGLE, None),
+        )
+        self.state.dsp[p.DSP_MIC_FOCUS_ANGLE] = degrees
+        self._notify()
+
+    async def mic_eq_preset(self, name: str | None) -> None:
+        """None turns the microphone EQ off; a name switches it on with that captured preset."""
+        if name is None:
+            await self.set_dsp_value("mic_eq_preset", p.DSP_MIC_EQ, 0.0)
+            return
+        if name not in captured.MIC_EQ_PRESETS:
+            raise KatanaCommandError(f"unknown microphone EQ preset {name!r}")
+        cmds = [p.dsp_write(p.DSP_MIC_EQ, 1.0), *p.captured_sequence((captured.MIC_EQ_PRESETS[name],))]
+        await self.send(
+            "mic_eq_preset",
+            cmds,
+            reread=[p.dsp_query(p.DSP_READ_IDS), p.dsp_query(p.DSP_READ_IDS_2)],
+            forget=lambda: [self.state.dsp.pop(pid, None) for pid in (p.DSP_MIC_EQ, *p.DSP_MIC_EQ_BANDS)],
+        )
+        await self._reread([p.dsp_query(p.DSP_READ_IDS), p.dsp_query(p.DSP_READ_IDS_2)])
+        self._notify()
+
+    async def set_dsp_value(self, family: str, pid: int, value: float) -> None:
+        await self.send(
+            family,
+            [p.dsp_write(pid, value)],
+            reread=[p.dsp_query(p.DSP_READ_IDS)],
+            forget=lambda: self.state.dsp.pop(pid, None),
+        )
+        self.state.dsp[pid] = value
+        self._notify()
+
+    async def set_mic_priority(self, sources: tuple[int, ...]) -> None:
+        await self.send(
+            "mic_priority",
+            [p.set_mic_priority(sources)],
+            reread=[p.mic_priority_query()],
+            forget=lambda: setattr(self.state, "mic_priority", None),
+        )
+        self.state.mic_priority = tuple(sources)
+        self._notify()
+
+    async def set_energy_saving(self, on: bool) -> None:
+        await self.send(
+            "energy_saving",
+            [p.set_setting(p.SETTING_ENERGY_SAVING, on)],
+            reread=[p.settings_query()],
+            forget=lambda: setattr(self.state, "energy_saving", None),
+        )
+        self.state.energy_saving = on
+        self._notify()
+
+    async def set_cec_link(self, on: bool) -> None:
+        await self.send(
+            "cec_link",
+            [p.set_setting(p.SETTING_CEC_LINK, on)],
+            reread=[p.settings_query()],
+            forget=lambda: setattr(self.state, "cec_link", None),
+        )
+        self.state.cec_link = on
+        self._notify()
+
+    async def set_auto_standby(self, extra_minutes: int) -> None:
+        await self.send(
+            "auto_standby",
+            [p.set_auto_standby(extra_minutes)],
+            reread=[p.auto_standby_query()],
+            forget=lambda: setattr(self.state, "auto_standby", None),
+        )
+        self.state.auto_standby = extra_minutes
+        self._notify()
+
+    async def set_display(self, code: tuple[int, int]) -> None:
+        await self.send(
+            "display",
+            [p.set_display(code)],
+            reread=[p.display_query()],
+            forget=lambda: setattr(self.state, "display", None),
+        )
+        self.state.display = tuple(code)
+        self._notify()
+
     def _forget_light(self) -> None:
         s = self.state
-        s.light_on = s.light_mode = s.light_colours = s.light_name = s.light_solid = None
+        s.light_on = s.light_mode = s.light_colours = s.light_name = s.light_solid = s.light_brightness = None
 
     async def handover_off(self) -> None:
         """The stream's hand-over: lights off, through the manual path, gated as lighting power."""

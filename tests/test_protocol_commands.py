@@ -1,6 +1,8 @@
 """Golden vectors: every builder reproduces a frame Creative's app sent, and every
 parser decodes a reply the soundbar gave, byte for byte (capture of 2026-10-07)."""
 
+import struct
+
 import pytest
 
 from custom_components.sb_katana import protocol as p
@@ -56,6 +58,24 @@ GOLDEN = [
     (p.light_name_query(), "5a3a023200"),
     (p.light_map_query(), "5a3a022400"),
     (p.solo_colour((0, 0, 255)), "5a3a082b000101ffff0000"),
+    # Second and third captures (2026-10-07 12:38 and 12:54-12:58).
+    (p.light_brightness(0xFC), "5a3a0227fc"),
+    (p.light_brightness_query(), "5a3a0128"),
+    (p.mic_priority_query(), "5a2d0101"),
+    (p.set_mic_priority((0x01, 0x00)), "5a2d0405020100"),
+    (p.set_mic_priority((0x00, 0x01)), "5a2d0405020001"),
+    (p.set_mic_priority(()), "5a2d020500"),
+    (p.settings_query(), "5a390101"),
+    (p.auto_standby_query(), "5a39020611"),
+    (p.display_query(), "5a39020612"),
+    (p.set_setting(p.SETTING_ENERGY_SAVING, False), "5a3903001100"),
+    (p.set_setting(p.SETTING_CEC_LINK, True), "5a3903001801"),
+    (p.set_auto_standby(465), "5a390a07110f000000d1010000"),
+    (p.set_auto_standby(1665), "5a390a07110f00000081060000"),
+    (p.set_auto_standby(0), "5a390a07110f00000000000000"),
+    (p.set_display((0x02, 0x05)), "5a390407120205"),
+    (p.set_display((0x07, 0x00)), "5a390407120700"),
+    (p.dsp_write(p.DSP_MIC_FOCUS_ANGLE, struct.unpack("<f", bytes.fromhex("17990643"))[0]), "5a120701950817990643"),
 ]
 
 
@@ -201,3 +221,45 @@ def test_parsers_reject_the_wrong_frame():
         p.parse_firmware(frame("5a2c050102000000"))
     with pytest.raises(p.ProtocolError):
         p.parse_colours(frame("5a3a052c00033605"))
+
+
+def test_auto_standby_options_match_the_captured_values():
+    # 8 h, 2 h, 1 h, 30 min, never, 28 h -- as the app sent them, minutes beyond the 15-min network standby.
+    assert sorted(p.AUTO_STANDBY_OPTIONS.values()) == sorted([0x1D1, 0x69, 0x2D, 0x0F, 0x00, 0x681])
+
+
+def test_eq_band_write_reproduces_the_captured_drag():
+    captured = bytes.fromhex(
+        "5aa837100000000a010000000002000000000300000000040000000005000000000600000000"
+        "070000000008000000000910dc07400a60433940"
+    )
+    gains = [struct.unpack("<f", captured[9 + 5 * i : 13 + 5 * i])[0] for i in range(10)]
+    mark, bands = p.eq_band_write(0, gains)
+    assert mark.frame.hex() == "5aa8140b000000" + "00" * 16
+    assert bands.frame == captured
+
+
+def test_eq_value_reads_match_the_app():
+    first, second = p.eq_values_queries(0)
+    assert first.frame.hex() == "5aa80f110000000a00010203040506070809"
+    assert second.frame.hex() == "5aa80811000000030a0b0c"
+
+
+def test_captured_mic_eq_preset_frame_passes_the_encoder():
+    raw = bytes.fromhex(
+        "5a123108951700000000951900008040951b0000e040951a0000c04095140000a0c09516000000c09515000080c0951800004040"
+    )
+    frame = p.parse(raw)
+    assert p.encode(frame.op, frame.payload) == raw
+
+
+def test_parse_new_replies():
+    assert p.parse_light_brightness(p.parse(bytes.fromhex("5a3a0228b7"))) == 0xB7
+    assert p.parse_mic_priority(p.parse(bytes.fromhex("5a2d0401020001"))) == (0x00, 0x01)
+    assert p.parse_settings(p.parse(bytes.fromhex("5a39050100000601"))) == (True, True)
+    assert p.parse_settings(p.parse(bytes.fromhex("5a39050100000401"))) == (False, True)
+    assert p.parse_auto_standby(p.parse(bytes.fromhex("5a391206110f000000810600000000000001000000"))) == 1665
+    assert p.parse_display(p.parse(bytes.fromhex("5a390406120700"))) == (0x07, 0x00)
+    body = "1100000003" + "0a" + "00001040" + "0b" + "0000c0c0" + "0c" + "00000000"
+    slot, sub, values = p.parse_eq_values(p.parse(bytes.fromhex(f"5aa8{len(body) // 2:02x}{body}")))
+    assert (slot, sub) == (0, 0) and values == {0x0A: 2.25, 0x0B: -6.0, 0x0C: 0.0}

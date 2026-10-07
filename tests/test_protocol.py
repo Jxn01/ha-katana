@@ -20,7 +20,7 @@ def test_encode_empty_payload():
         (0x53, b"\x01\x01\x00\x00\x00"),  # firmware validate
         (0x98, b"\x03"),  # firmware transfer sub-command
         (0x5B, b"\x98"),
-        (0x3A, b"\x27\x80"),  # brightness: the app never sends it
+        (0x3A, b"\x30"),  # a lighting sub-command never seen
         (0xA7, b"\x05\xff\x02"),  # mode editor
         (0x60, b"\x04"),
     ],
@@ -46,7 +46,19 @@ def test_encode_refuses_what_is_not_allowlisted(op, payload):
         (0xA7, bytes.fromhex("1200000102000000803f"), "not writable"),  # unknown key 02.00
         (0xA7, bytes.fromhex("12000001000101000000"), "may only be cleared"),
         (0xA7, bytes.fromhex("1200000104000000a040"), "out of range"),  # decoder 5.0
-        (0xA8, bytes.fromhex("0b000002"), "EQ live-load shape"),  # slot 00 instead of ff
+        (0xA8, bytes.fromhex("0b000002"), "EQ custom-mark shape"),  # custom mark without its 16 zero bytes
+        (0xA8, bytes.fromhex("0b000102") + bytes(16), "EQ live-load shape"),  # a stored EQ slot
+        (0xA8, bytes.fromhex("100000000a") + bytes([2, 0, 0, 0, 0]) * 10, "EQ band order"),
+        (
+            0xA8,
+            bytes.fromhex("100000000a") + b"".join(bytes([b]) + bytes.fromhex("00002041") for b in range(1, 11)),
+            "EQ band gain range",
+        ),  # +10 dB
+        (0x12, bytes.fromhex("01950800008041"), "focus angle range"),  # 16 degrees
+        (0x2D, bytes.fromhex("05010100"), "mic priority list"),
+        (0x39, bytes.fromhex("001201"), "setting id"),
+        (0x39, bytes.fromhex("07110f0000002c000000"), "auto standby value"),  # 44 min is not an option
+        (0x39, bytes.fromhex("07120300"), "display value"),
         (0x12, bytes.fromhex("01960a00000000"), "not writable"),  # main EQ preamp
         (0x12, bytes.fromhex("01952c0000003f"), "DSP value"),  # 0.5
         (0x3A, bytes([0x25, 0x02]), "lighting power value"),

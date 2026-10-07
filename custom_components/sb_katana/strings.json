@@ -97,6 +97,12 @@
       },
       "mic_focus": {
         "name": "Microphone Focus"
+      },
+      "energy_saving": {
+        "name": "Energy saving"
+      },
+      "cec_link": {
+        "name": "HDMI CEC standby link"
       }
     },
     "select": {
@@ -117,6 +123,18 @@
       },
       "sound_mode": {
         "name": "Sound mode"
+      },
+      "mic_priority": {
+        "name": "Microphone priority"
+      },
+      "mic_eq_preset": {
+        "name": "Microphone equalizer"
+      },
+      "auto_standby": {
+        "name": "Auto standby"
+      },
+      "display": {
+        "name": "Display"
       }
     },
     "number": {
@@ -149,6 +167,12 @@
       },
       "subwoofer": {
         "name": "Subwoofer"
+      },
+      "eq_band": {
+        "name": "EQ {band}"
+      },
+      "mic_focus_angle": {
+        "name": "Microphone focus angle"
       }
     },
     "sensor": {

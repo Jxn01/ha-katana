@@ -160,14 +160,14 @@ async def test_external_colour_changes_are_throttled(hass, entry, fake, monkeypa
     changes: list = []
     hass.bus.async_listen(EVENT_STATE_CHANGED, lambda e: changes.append(e) if e.data["entity_id"] == light else None)
     for i in range(40):
-        fake.notify("5a3a202c000101" + bytes([0xFF, 0, 0, i + 1]).hex() + "ff000000" * 6)
+        fake.notify("5a3a202c000101" + bytes([0xFF, 0, 5 * (i + 1), 255]).hex() + "ff000000" * 6)
         await asyncio.sleep(0.025)  # 40 changes in 1 s
     await asyncio.sleep(0.6)
     await hass.async_block_till_done()
     # 40 changes over ~1.6 s with a 0.5 s interval: at most one publish per interval, plus the first.
     assert 1 <= len(changes) <= 4
     # The newest colour is what is eventually shown.
-    assert hass.states.get(light).attributes["brightness"] == 40
+    assert tuple(hass.states.get(light).attributes["rgb_color"]) == (255, 200, 0)
 
 
 async def test_on_off_from_outside_is_published_at_once(hass, entry, fake):

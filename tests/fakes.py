@@ -34,6 +34,22 @@ STORE = {
     },
 }
 STORE[2] = {**STORE[0], p.KEY_SURROUND_LEVEL: 0.5}
+# The live EQ ("Music"): preamp, the ten bands, bass, treble -- as read in the first capture.
+EQ_VALUES = {
+    0: 0.0,
+    1: 0.0,
+    2: 0.0,
+    3: -1.0,
+    4: -1.0,
+    5: -1.0,
+    6: 1.5,
+    7: 1.5,
+    8: 0.0,
+    9: 2.0,
+    10: 2.0,
+    11: 0.0,
+    12: 2.0,
+}
 
 
 def frame(op: int, payload: bytes) -> bytes:
@@ -110,6 +126,20 @@ class FakeKatana:
             struct.pack(">H", pid) + struct.pack("<f", v) for pid, v in ((0x952C, 1.0), (0x9513, 0.0), (0x9506, 1.0))
         )
         r[p.dsp_query(p.DSP_READ_IDS).frame.hex()] = [frame(p.OP_DSP_READ, b"\x03\x00" + dsp)]
+        dsp2 = struct.pack(">H", 0x9508) + struct.pack("<f", 30.0)
+        dsp2 += b"".join(struct.pack(">H", pid) + struct.pack("<f", 0.0) for pid in p.DSP_MIC_EQ_BANDS)
+        r[p.dsp_query(p.DSP_READ_IDS_2).frame.hex()] = [frame(p.OP_DSP_READ, b"\x09\x00" + dsp2)]
+        for sub in (0, 2):
+            first, second = p.eq_values_queries(sub)
+            for cmd, idxs in ((first, range(0, 10)), (second, (10, 11, 12))):
+                body = bytes([0x11, 0x00, 0x00, sub, len(idxs)])
+                body += b"".join(bytes([i]) + struct.pack("<f", EQ_VALUES[i]) for i in idxs)
+                r[cmd.frame.hex()] = [frame(p.OP_EQ, body)]
+        r[p.light_brightness_query().frame.hex()] = [bytes.fromhex("5a3a0228ff")]
+        r[p.mic_priority_query().frame.hex()] = [bytes.fromhex("5a2d0401020001")]
+        r[p.settings_query().frame.hex()] = [bytes.fromhex("5a39050100000601")]
+        r[p.auto_standby_query().frame.hex()] = [bytes.fromhex("5a391206110f000000810600000000000001000000")]
+        r[p.display_query().frame.hex()] = [bytes.fromhex("5a390406120700")]
         return r
 
     async def connect(self) -> None:

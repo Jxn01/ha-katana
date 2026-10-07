@@ -42,7 +42,7 @@ One device, **Sound Blaster Katana V2X**. "Gate" names the command family each w
 
 | Entity | What it does | Gate |
 |---|---|---|
-| **Lighting** (`light`) | On/off. RGB colour, which sets the bar to one solid colour (the "Solo" effect). Brightness, done by scaling the colour, because the soundbar has no brightness control of its own and the app never sends one. Effects: the app's nine presets — Aurora, Cycle, Mood Orange, Morph Cyan, Pulsate Red, Solo White, Wave Green, Wave Ice Blue, Wave Rainbow. | on/off `light_power`, colour/brightness `light_solo` — **confirmed**; effects `light_preset` |
+| **Lighting** (`light`) | On/off. RGB colour, which sets the bar to one solid colour (the "Solo" effect). Brightness is the soundbar's own **Global Brightness**. Effects: the app's nine presets — Aurora, Cycle, Mood Orange, Morph Cyan, Pulsate Red, Solo White, Wave Green, Wave Ice Blue, Wave Rainbow. | on/off `light_power`, colour `light_solo`, effects `light_preset`, brightness `light_brightness` |
 
 The light's state does **not** follow screen-sync frames, and a colour change Home Assistant did not cause
 (ambience-rgb over USB, the remote) is published at most once every 30 s. On/off is always published at once.
@@ -69,6 +69,8 @@ offered.
 | **Equalizer** | EQ on/off for the current output | `eq_enable` |
 | **Surround** / **Crystalizer** / **Smart Volume** / **Dialog+** | Acoustic Engine effects on/off for the current output | `acoustic` |
 | **Microphone Smart Volume** / **Microphone Equalizer** / **Microphone Focus** | CrystalVoice on/off | `crystalvoice` |
+| **Energy saving** (config) | Network standby after 15 min of no operation | `energy_saving` |
+| **HDMI CEC standby link** (config) | Follow the TV's standby over HDMI CEC | `cec_link` |
 
 ### Selects
 
@@ -78,8 +80,12 @@ offered.
 | **Sound mode** | The modes stored on the soundbar, e.g. "Music.", "Gaming.", "Voice.", "Effects Off". Also on the media player. After a setting is changed live, the soundbar reports its live copy, which it renames **"Onboard"**: that name is then the current option, with attribute `modified: true`. Picking a stored mode loads it (and drops the live changes); picking "Onboard" sends nothing | `sound_mode` |
 | **Output** | Speakers, Headphones | `output` |
 | **Decoder** | Normal, Full, Night (Dolby dynamic range control) | `decoder` |
-| **EQ preset** | Gaming, Music, Movies, Footsteps Enhancer: the four presets whose full curves were captured from the app | `eq_preset` |
-| **Smart Volume mode** | Mode 1, Mode 2, Mode 3. The soundbar stores 0/1/2; the app's labels for them were not captured | `smart_volume_detail` |
+| **EQ preset** | Gaming, Music, Movies, Footsteps Enhancer, Flat: the presets whose full curves were captured from the app. After a band edit the live EQ is called "Onboard", which is then shown as the current option | `eq_preset` |
+| **Smart Volume mode** | Manual (the level slider), Loud, Night | `smart_volume_detail` |
+| **Microphone priority** | Auto, Headset Microphone, Microphone Array (labels inferred from tap order) | `mic_priority` |
+| **Microphone equalizer** | Off, or one of the app's eleven presets (labels inferred from tap order) | `mic_eq_preset` |
+| **Auto standby** (config) | 28 hours, 8 hours, 2 hours, 1 hour, 30 minutes, Never — time to full standby | `auto_standby` |
+| **Display** (config) | Bright, Dark, Off (Dark/Off inferred from tap order) | `display` |
 
 ### Numbers
 
@@ -90,7 +96,9 @@ offered.
 | **Line In level**, **SPDIF In level**, **Microphone level** | 0–100 % in steps of 2 | `mixer` |
 | **What U Hear level** | 0–100 % in steps of 2 | `what_u_hear` |
 | **Headphones level** | 0–100 % in steps of 2. **Disabled by default**: reported not working, and not verifiable without headphones | `headphones_level` |
-| **Subwoofer** | −10 … +6 dB | `subwoofer` |
+| **Subwoofer** | −10 … +6 dB ("Bass (dB)" in the app) | `subwoofer` |
+| **EQ 31 Hz** … **EQ 16 kHz** | −9 … +9 dB in steps of 0.5, for the current output. Each change writes all ten bands, as the app does, and marks the live EQ custom ("Onboard") | `eq_bands` |
+| **Microphone focus angle** | 20 … 180° | `focus_angle` |
 
 Acoustic Engine, Decoder and EQ settings exist separately for Speakers and Headphones. These entities show
 and change the side that matches the current **Output**, exactly as the app's two tabs do.
@@ -161,8 +169,10 @@ service, **`sb_katana.stream_frame`**, exists for automations and tests:
   (`0x53`) or device-memory access (`0x54`). The soundbar's second GATT service is never touched. Guard
   tests fail the build if any of that appears, and each guard has a positive control.
 - **The confirmation gate.** A command family is enabled by default only once the owner has seen or heard it
-  work over BLE. As of 2026-10-07 that is every family except **Headphones level** (reported not working),
-  which works only with **Allow unconfirmed controls** on.
+  work over BLE. As of 2026-10-07 midday that is every family from the first capture except **Headphones
+  level** (reported not working). The families from the third capture — `light_brightness`, `eq_bands`,
+  `focus_angle`, `energy_saving`, `auto_standby`, `cec_link`, `mic_priority`, `mic_eq_preset`, `display` — work only
+  with **Allow unconfirmed controls** on until the owner has tried them.
 - **State comes only from the soundbar.** A value changes when the soundbar reports it or acknowledges a
   write. A refusal (status ≠ 0) keeps the old value. No answer means the outcome is unknown: the value is
   cleared and re-read. The firmware (and so the write gate) is re-read on every reconnect. Nothing is written
