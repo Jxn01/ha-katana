@@ -214,6 +214,9 @@ class KatanaDevice:
     async def _connect_and_verify(self) -> None:
         """Connect and read everything back; on a failed read-back drop the link so a retry starts clean."""
         await self._transport.connect()
+        # A new connection: nothing read on the old one counts until re-read here.
+        self._verified = False
+        self.state.firmware = None
         try:
             await self.refresh(full=True)
         except BaseException:
@@ -509,9 +512,6 @@ class KatanaDevice:
         retried once at the end. A failed full read of the identity raises,
         because a soundbar that cannot even report its firmware is not set up.
         """
-        if full:
-            self._verified = False
-            self.state.firmware = None
         failed: list[p.Command] = []
         for cmd in self._read_plan(full):
             try:

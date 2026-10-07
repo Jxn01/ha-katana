@@ -204,3 +204,15 @@ async def test_firmware_issue_follows_a_reconnect(hass, entry, fake):
     await hass.async_block_till_done()
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
     assert not device.firmware_ok
+
+
+async def test_reread_button_does_not_blank_the_entities(hass, entry):
+    from homeassistant.const import EVENT_STATE_CHANGED
+
+    changes: list[str] = []
+    hass.bus.async_listen(
+        EVENT_STATE_CHANGED, lambda e: changes.append(e.data["new_state"].state) if e.data["new_state"] else None
+    )
+    await call(hass, "button", "press", eid(hass, "button", "reread_state"))
+    await hass.async_block_till_done()
+    assert "unavailable" not in changes

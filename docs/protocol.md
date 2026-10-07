@@ -50,6 +50,12 @@ firmware-transfer frame family (2-byte length). It is never sent.
 | `81` | unsupported or not applicable (`28 02`, `40 01`, `40 08`, `aa 00`, `96 01`, `0e 01`, `6c 0x`, `a7 0a 00`) |
 | `83` | rejected (`60 04`) |
 
+The 8 trailing bytes are **not** a reliable echo of the request (most opcodes echo zeros), so an ACK can only
+be matched by opcode, with one exchange in flight at a time. Consequence: a status-00 ACK that arrives
+*after* its write timed out could be taken for the next write of the same opcode. With a 2 s timeout and
+~30 ms ACKs this only matters during the connect stall, when nothing is written; reads are protected, since
+a status-00 ACK never answers a read.
+
 Some commands are answered with a data frame of the same opcode and no ACK (most reads).
 Writes are answered with an ACK, often plus state notifications. **Any non-zero status is
 treated as "rejected"**.
