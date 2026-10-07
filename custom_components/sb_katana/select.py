@@ -135,6 +135,13 @@ class KatanaSelect(KatanaEntity, SelectEntity):
         current = self.entity_description.current(self._device)
         return current if current in self.options else None
 
+    @property
+    def extra_state_attributes(self) -> dict[str, bool] | None:
+        if self.entity_description.key != "sound_mode":
+            return None
+        # Settings changed after the mode was picked; picking it again restores it.
+        return {"modified": self._device.state.mode_modified}
+
     async def async_select_option(self, option: str) -> None:
         if option not in self.options:
             raise ServiceValidationError(f"unknown option {option!r}")

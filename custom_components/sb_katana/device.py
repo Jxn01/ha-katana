@@ -74,8 +74,9 @@ class KatanaState:
     mutes: dict[int, bool] = field(default_factory=dict)
     sub: int | None = None
     scout: bool | None = None
-    mode_active: int | None = None
+    mode_active: int | None = None  # 0 = the live copy no longer matches a stored mode (edited)
     mode_names: dict[int, str] = field(default_factory=dict)
+    mode_live_name: str | None = None  # the live copy's own name: the mode it was loaded from
     store: dict[int, StoreValues] = field(default_factory=dict)  # live slot, keyed by sub
     eq_names: dict[int, str] = field(default_factory=dict)  # live EQ name, keyed by sub
     dsp: dict[int, float] = field(default_factory=dict)
@@ -97,8 +98,18 @@ class KatanaState:
         return modes
 
     @property
+    def mode_modified(self) -> bool:
+        """The live settings were changed after a stored mode was selected (active slot 0)."""
+        return self.mode_active == p.LIVE_SLOT
+
+    @property
     def mode_name(self) -> str | None:
-        return self.mode_names.get(self.mode_active) if self.mode_active is not None else None
+        """The stored mode in use; when edited live, the mode it was loaded from."""
+        if self.mode_active is None:
+            return None
+        if self.mode_active == p.LIVE_SLOT:
+            return self.mode_live_name
+        return self.mode_names.get(self.mode_active)
 
 
 def apply_frame(state: KatanaState, raw: bytes) -> bool:
@@ -143,6 +154,8 @@ def apply_frame(state: KatanaState, raw: bytes) -> bool:
             slot, which, name = p.parse_mode_name(frame)
             if which == 0 and slot in p.MODE_SLOTS:
                 state.mode_names[slot] = name
+            elif which == 0 and slot == p.LIVE_SLOT:
+                state.mode_live_name = name
         elif op == p.OP_MODE and pl[:1] == b"\x13":
             slot, sub, values = p.parse_store(frame)
             if slot == p.LIVE_SLOT:
@@ -467,7 +480,7 @@ class KatanaDevice:
         plan += [p.level_query(ch) for ch in p.CHANNELS if ch != p.CH_SPEAKERS]
         plan += [p.mute_query(ch) for ch in p.CHANNELS if ch != p.CH_SPEAKERS]
         plan += [p.sub_query(), p.scout_query()]
-        plan += [p.mode_name_query(slot) for slot in p.MODE_SLOTS]
+        plan += [p.mode_name_query(slot) for slot in (p.LIVE_SLOT, *p.MODE_SLOTS)]
         plan += self._store_reads(p.STORE_SUB_SPEAKERS) + self._store_reads(p.STORE_SUB_HEADPHONES)
         plan += [p.eq_name_query(p.STORE_SUB_SPEAKERS), p.eq_name_query(p.STORE_SUB_HEADPHONES)]
         plan += [p.dsp_query(p.DSP_READ_IDS)]
@@ -489,6 +502,8 @@ class KatanaDevice:
         if s.scout is None:
             reads.append(p.scout_query())
         reads += [p.mode_name_query(slot) for slot in p.MODE_SLOTS if slot not in s.mode_names]
+        if s.mode_live_name is None:
+            reads.append(p.mode_name_query(p.LIVE_SLOT))
         wanted = {key for keys in p.STORE_READ_KEYS for key in keys}
         for sub in (p.STORE_SUB_SPEAKERS, p.STORE_SUB_HEADPHONES):
             if not wanted <= set(s.store.get(sub, {})):
@@ -626,6 +641,7 @@ class KatanaDevice:
         # Selecting a mode replaces the live acoustic, decoder and EQ settings.
         await self._reread(
             [
+                p.mode_name_query(p.LIVE_SLOT),
                 *self._store_reads(p.STORE_SUB_SPEAKERS),
                 *self._store_reads(p.STORE_SUB_HEADPHONES),
                 p.eq_name_query(p.STORE_SUB_SPEAKERS),

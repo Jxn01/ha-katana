@@ -247,3 +247,16 @@ async def test_reread_button_does_not_blank_the_entities(hass, entry):
     await call(hass, "button", "press", eid(hass, "button", "reread_state"))
     await hass.async_block_till_done()
     assert "unavailable" not in changes
+
+
+async def test_an_edited_mode_shows_the_mode_it_came_from(hass, entry, fake):
+    """Changing acoustic settings live makes the soundbar report active slot 0."""
+    fake.notify("5aa7020100")  # a7:01 -> slot 0
+    await hass.async_block_till_done()
+    mode = state(hass, "select", "sound_mode")
+    assert mode.state == "Music."
+    assert mode.attributes["modified"] is True
+    assert state(hass, "media_player", "soundbar").attributes["sound_mode"] == "Music."
+    fake.notify("5aa7020101")  # picked again: stored settings restored
+    await hass.async_block_till_done()
+    assert state(hass, "select", "sound_mode").attributes["modified"] is False

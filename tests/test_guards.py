@@ -55,7 +55,7 @@ SAMPLES = {
     "set_scout": [(True,), (False,)],
     "mode_active_query": [()],
     "select_mode": [(s,) for s in protocol.MODE_SLOTS],
-    "mode_name_query": [(s,) for s in protocol.MODE_SLOTS],
+    "mode_name_query": [(s,) for s in (protocol.LIVE_SLOT, *protocol.MODE_SLOTS)],
     "store_query": [(0, sub, keys) for sub in (0, 2) for keys in protocol.STORE_READ_KEYS],
     "store_write": [(sub, [(k, lo), (k, hi)]) for sub in (0, 2) for k, (lo, hi) in protocol.STORE_WRITABLE.items()]
     + [(0, [(protocol.KEY_EQ_SLOT, 0)])],

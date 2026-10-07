@@ -96,7 +96,7 @@ class FakeKatana:
         for ch in p.CHANNELS:
             r[p.level_query(ch).frame.hex()] = [frame(p.OP_LEVEL, bytes([ch, LEVELS[ch], 0]))]
             r[p.mute_query(ch).frame.hex()] = [frame(p.OP_MUTE, bytes([ch, int(MUTES.get(ch, False))]))]
-        for slot, name in MODE_NAMES.items():
+        for slot, name in {0: "Music.", **MODE_NAMES}.items():
             r[p.mode_name_query(slot).frame.hex()] = [
                 frame(p.OP_MODE, bytes([0x06, slot, 0x00, 0x10, 0x10, 0x00]) + utf16_field(name))
             ]
