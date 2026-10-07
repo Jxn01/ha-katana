@@ -201,3 +201,23 @@ async def test_reads_that_time_out_are_retried_once(monkeypatch):
     assert fake.writes.count(stalled) == 2
     assert device.state.output == "speakers"
     await device.stop()
+
+
+async def test_poll_heals_reads_that_failed_at_connect(monkeypatch):
+    monkeypatch.setattr(dev, "REPLY_TIMEOUT", 0.05)
+    fake = FakeKatana()
+    store_read = p.store_query(0, 0, p.STORE_READ_KEYS[0]).frame.hex()
+    fake.silent.add(store_read)
+    device = dev.KatanaDevice(fake)
+    await device.start()
+    assert p.KEY_SURROUND not in device.state.store.get(0, {})
+    fake.silent.discard(store_read)
+    before = len(fake.writes)
+    await device.refresh()  # the 60 s poll
+    assert store_read in fake.writes_since(before)
+    assert device.state.store[0][p.KEY_SURROUND] == 1.0
+    # Once everything is known, the poll is back to its six quick reads.
+    before = len(fake.writes)
+    await device.refresh()
+    assert len(fake.writes_since(before)) == 6
+    await device.stop()

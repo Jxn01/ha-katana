@@ -371,7 +371,7 @@ class KatanaDevice:
             p.light_power_query(),
         ]
         if not full:
-            return quick
+            return quick + self._missing_reads()
         plan = [p.ping(), p.firmware_query(), p.serial_query(), *quick, p.input_list_query(), p.auto_switch_query()]
         plan += [p.level_query(ch) for ch in p.CHANNELS if ch != p.CH_SPEAKERS]
         plan += [p.mute_query(ch) for ch in p.CHANNELS if ch != p.CH_SPEAKERS]
@@ -382,6 +382,33 @@ class KatanaDevice:
         plan += [p.dsp_query(p.DSP_READ_IDS)]
         plan += self._light_reads()
         return plan
+
+    def _missing_reads(self) -> list[p.Command]:
+        """Reads for whatever is still unknown, so the poll heals a read that failed at connect."""
+        s = self.state
+        reads: list[p.Command] = []
+        if s.inputs is None:
+            reads.append(p.input_list_query())
+        if s.auto_switch is None:
+            reads.append(p.auto_switch_query())
+        reads += [p.level_query(ch) for ch in p.CHANNELS if ch not in s.levels and ch != p.CH_SPEAKERS]
+        reads += [p.mute_query(ch) for ch in p.CHANNELS if ch not in s.mutes and ch != p.CH_SPEAKERS]
+        if s.sub is None:
+            reads.append(p.sub_query())
+        if s.scout is None:
+            reads.append(p.scout_query())
+        reads += [p.mode_name_query(slot) for slot in p.MODE_SLOTS if slot not in s.mode_names]
+        wanted = {key for keys in p.STORE_READ_KEYS for key in keys}
+        for sub in (p.STORE_SUB_SPEAKERS, p.STORE_SUB_HEADPHONES):
+            if not wanted <= set(s.store.get(sub, {})):
+                reads += self._store_reads(sub)
+            if sub not in s.eq_names:
+                reads.append(p.eq_name_query(sub))
+        if not set(p.DSP_READ_IDS) <= set(s.dsp):
+            reads.append(p.dsp_query(p.DSP_READ_IDS))
+        if s.light_colours is None or s.light_mode is None or s.light_name is None or s.light_solid is None:
+            reads += self._light_reads()
+        return reads
 
     @staticmethod
     def _store_reads(sub: int) -> list[p.Command]:

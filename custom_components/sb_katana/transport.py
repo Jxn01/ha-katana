@@ -40,6 +40,7 @@ class BleakTransport:
         self._hass = hass
         self._address = address
         self._client: BleakClientWithServiceCache | None = None
+        self._learned_limit = _MIN_WRITE
         self._reader = FrameReader()
         self.on_frame: Callable[[bytes], None] | None = None
         self.on_disconnect: Callable[[], None] | None = None
@@ -52,14 +53,41 @@ class BleakTransport:
     def write_limit(self) -> int:
         """Largest frame one Write Command can carry on this link (negotiated MTU - 3).
 
-        Read from the characteristic, which is the documented source for
-        write-without-response; BlueZ (5.62+) reports the negotiated MTU there.
+        The characteristic's own figure is the documented source, but on HA's BlueZ
+        it was seen stuck at the 23-byte default on one connection (the first
+        connection read 197) while the soundbar was sending 40-byte frames. So the
+        MTU learned at connect (``_learn_write_limit``) counts too.
         """
         client = self._client
         if client is None:
             return _MIN_WRITE
+        return max(self._reported_limit(client), self._learned_limit)
+
+    @staticmethod
+    def _reported_limit(client: BleakClientWithServiceCache) -> int:
         char = client.services.get_characteristic(WRITE_UUID)
         return char.max_write_without_response_size if char is not None else _MIN_WRITE
+
+    async def _learn_write_limit(self, client: BleakClientWithServiceCache) -> None:
+        """If the characteristic reports the default, ask BlueZ for the negotiated MTU.
+
+        ``_acquire_mtu`` (bleak's BlueZ backend) calls AcquireWrite and closes the
+        returned socket at once: it learns the MTU and writes nothing to the device.
+        """
+        self._learned_limit = _MIN_WRITE
+        reported = self._reported_limit(client)
+        if reported > _MIN_WRITE:
+            return
+        backend = getattr(client, "_backend", None)
+        acquire = getattr(backend, "_acquire_mtu", None)
+        if acquire is None:
+            return
+        try:
+            await acquire()
+            self._learned_limit = max(_MIN_WRITE, backend.mtu_size - 3)
+        except Exception as err:  # a best-effort probe
+            _LOGGER.debug("Could not learn the MTU: %s", err)
+        _LOGGER.debug("Write limit: characteristic reports %s, BlueZ MTU gives %s", reported, self._learned_limit)
 
     async def connect(self) -> None:
         if self.connected:
@@ -86,6 +114,7 @@ class BleakTransport:
             await client.disconnect()
             raise
         self._client = client
+        await self._learn_write_limit(client)
         _LOGGER.info("Connected to the Katana at %s; write limit %s bytes", self._address, self.write_limit)
 
     async def disconnect(self) -> None:

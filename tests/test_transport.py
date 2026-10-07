@@ -101,3 +101,28 @@ async def test_unexpected_disconnect_is_reported_and_deliberate_one_is_not(hass,
     await transport.disconnect()
     transport._handle_disconnect(connect.return_value)
     assert calls == [1]
+
+
+async def test_default_write_limit_is_corrected_from_bluez_mtu(hass, bt):
+    _, _, _, connect = bt
+    client = fake_client(limit=20)
+    client._backend.mtu_size = 200
+    client._backend._acquire_mtu = AsyncMock()
+    connect.return_value = client
+    transport = t.BleakTransport(hass, ADDRESS)
+    await transport.connect()
+    client._backend._acquire_mtu.assert_awaited_once()
+    assert transport.write_limit == 197
+    await transport.write(bytes(57))  # an EQ preset frame now fits
+    client.write_gatt_char.assert_awaited_once()
+
+
+async def test_a_good_reported_limit_skips_the_probe(hass, bt):
+    _, _, _, connect = bt
+    client = fake_client(limit=197)
+    client._backend._acquire_mtu = AsyncMock()
+    connect.return_value = client
+    transport = t.BleakTransport(hass, ADDRESS)
+    await transport.connect()
+    client._backend._acquire_mtu.assert_not_awaited()
+    assert transport.write_limit == 197
