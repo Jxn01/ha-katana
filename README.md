@@ -45,7 +45,7 @@ One device, **Sound Blaster Katana V2X**. "Gate" names the command family each w
 | **Lighting** (`light`) | On/off. RGB colour, which sets the bar to one solid colour (the "Solo" effect). Brightness is the soundbar's own **Global Brightness**. Effects: the app's nine presets — Aurora, Cycle, Mood Orange, Morph Cyan, Pulsate Red, Solo White, Wave Green, Wave Ice Blue, Wave Rainbow. | on/off `light_power`, colour `light_solo`, effects `light_preset`, brightness `light_brightness` |
 
 The light's state does **not** follow screen-sync frames, and a colour change Home Assistant did not cause
-(ambience-rgb over USB, the remote) is published at most once every 30 s. On/off is always published at once.
+(Creative's app, the remote) is published at most once every 30 s. On/off is always published at once.
 
 ### Media player
 
@@ -125,7 +125,10 @@ Changing an option reloads the integration, which briefly reconnects.
 
 ## Screen sync from a PC
 
-The PC posts colours to an authenticated HTTP endpoint:
+The PC side is [ambience-rgb](https://github.com/Jxn01/ambience-rgb)'s `[katana_ha]` sink, live since
+2026-10-07 on both halves of the owner's rig (it replaced ambience-rgb's own USB driver for the soundbar,
+which was then removed). Any other program can do the same. The PC posts colours to an authenticated HTTP
+endpoint:
 
 ```
 POST /api/sb_katana/stream
@@ -146,6 +149,31 @@ Content-Type: application/json
 
 Send on every colour change, and **at least every 5 s** even when nothing changes, so the 10 s hand-over
 does not fire. On a clean stop simply stop sending; the hand-over turns the lights off.
+
+`accepted: false` is normal, not an error: **any manual lighting change in Home Assistant switches Screen
+sync off**, on purpose, and frames are dropped until it is switched back on. A sender should say so once
+rather than retry (ambience-rgb logs a warning).
+
+`GET` on the same path, with the same token, answers the stream's status and changes nothing — no write, no
+event, no state change. ambience-rgb's `devices` command prints it.
+
+```
+GET /api/sb_katana/stream[?config_entry_id=<id>]
+```
+
+| Field | Meaning |
+|---|---|
+| `screen_sync` | The **Screen sync** switch. `false`: every frame is dropped |
+| `receiving` | Frames are arriving (the **Screen sync receiving** sensor) |
+| `available` | The soundbar's Bluetooth link is up |
+| `rate_hz` | The **Screen sync rate** option |
+| `timeout_s` | The **Screen sync hand-over** option, in seconds |
+| `frames_received` | Frames accepted since the integration loaded |
+| `frames_dropped` | Frames dropped because Screen sync was off |
+| `writes_sent` | Colour batches sent to the soundbar |
+| `write_errors` | Batches that did not reach it |
+
+It answers `401` without a valid token and `404` like the `POST`.
 
 Why an endpoint and not a service: every HA service call fires a `call_service` event, and the recorder
 stores events. At 10 Hz that is about 36,000 rows an hour. The endpoint fires nothing. The equivalent

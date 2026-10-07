@@ -34,16 +34,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: KatanaC
             "write_limit": getattr(transport, "write_limit", None),
             "families": {k: {"tier": f.tier, "confirmed": f.confirmed} for k, f in FAMILIES.items()},
             "state": state,
-            "stream": {
-                "screen_sync": stream.screen_sync,
-                "receiving": stream.receiving,
-                "rate_hz": stream.rate_hz,
-                "timeout_s": stream.timeout_s,
-                "frames_received": stream.frames_received,
-                "frames_dropped": stream.frames_dropped,
-                "writes_sent": stream.writes_sent,
-                "write_errors": device.stream_errors,
-            },
+            "stream": stream.status(),
         },
         TO_REDACT,
     )

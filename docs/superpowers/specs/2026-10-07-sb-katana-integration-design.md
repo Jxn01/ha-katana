@@ -5,6 +5,11 @@ the KB, `10-jxn-garuda.md`). Sub-project 1, the protocol decode, is `docs/protoc
 ambience-rgb pushing screen colours to this integration; its contract is section 9, and it is built on an
 ambience-rgb branch.
 
+> **Status, 2026-10-07 evening: all three sub-projects are done.** Sub-project 3 was merged to ambience-rgb
+> `main` and switched over live the same day (the owner's word), verified end to end: frames arriving, the bar
+> following, and the hand-over turning it off 10 s after the last one. ambience-rgb's USB driver was then
+> removed (its commit `05d0bad`). See "As built" under section 9 for where the build departs from this design.
+
 ## 1. What the owner asked for, and what was agreed
 
 **Asked.** HA replaces the Creative app completely, over Bluetooth, because HA is always on and the PC
@@ -281,6 +286,20 @@ Both paths call the same `StreamController.handle_frame`.
 - When ambience-rgb stops, it simply stops posting, and the integration hands over after 10 s. On a clean
   stop the sink does not send black: the hand-over turns the lights off.
 - It is built on a branch, and **the running daemon is not switched over** until the owner says so.
+
+**As built (2026-10-07):**
+
+- The token is read from `$AMBIENCE_RGB_HA_TOKEN`, else the config's `token_file`, else **`.ha-token` at the
+  root of the ambience-rgb checkout**: gitignored and guarded by a hygiene test. One file serves both
+  halves of the rig, because the checkout is on the drive both operating systems share. The owner ruled the
+  same day that secrets may live on that drive as long as they never go public. The `.env.linux` /
+  `.env.windows` split above was not needed.
+- On a stop the sink **does** post black once, then falls silent. The integration writes black and turns the
+  bar off at the hand-over. A dark screen ends the same way, instead of keeping the bar lit black.
+- `accepted: false` (Screen sync off) is logged once per change by the sink, not treated as a failure.
+- A `GET` on the endpoint answers the stream's status (README, "Screen sync from a PC") for ambience-rgb's
+  `devices` command. Diagnostics report the same dictionary.
+- ambience-rgb's USB driver is gone. `[katana] enabled = true` is refused with a pointer to `[katana_ha]`.
 
 ## 10. Deployment and overnight verification (without the owner)
 

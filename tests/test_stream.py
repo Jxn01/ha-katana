@@ -121,6 +121,29 @@ async def test_http_endpoint_requires_auth(hass, entry, hass_client_no_auth):
     client = await hass_client_no_auth()
     resp = await client.post("/api/sb_katana/stream", json={"rgb": [1, 2, 3]})
     assert resp.status == 401
+    resp = await client.get("/api/sb_katana/stream")
+    assert resp.status == 401
+
+
+async def test_http_get_reports_status_and_changes_nothing(hass, entry, fake, stream, hass_client):
+    """ambience-rgb's `devices` asks this: Screen sync, receiving, the link -- without a write or an event."""
+    events, changes = [], []
+    hass.bus.async_listen(EVENT_CALL_SERVICE, lambda e: events.append(e))
+    hass.bus.async_listen(EVENT_STATE_CHANGED, lambda e: changes.append(e))
+    before = len(fake.writes)
+    client = await hass_client()
+    resp = await client.get("/api/sb_katana/stream")
+    assert resp.status == 200
+    body = await resp.json()
+    assert body == stream.status()
+    assert body["screen_sync"] is True and body["receiving"] is False and body["available"] is True
+    await hass.async_block_till_done()
+    assert changes == []
+    stream.set_screen_sync(False)
+    assert (await (await client.get("/api/sb_katana/stream")).json())["screen_sync"] is False
+    await hass.async_block_till_done()
+    assert fake.writes_since(before) == []
+    assert events == []
 
 
 async def test_service_still_works(hass, entry, fake):

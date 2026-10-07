@@ -158,6 +158,20 @@ class StreamController:
         """A manual lighting change from HA: Screen sync yields, and stays off until switched back on."""
         self.set_screen_sync(False)
 
+    def status(self) -> dict[str, object]:
+        """What ``GET /api/sb_katana/stream`` answers, and diagnostics show: no entity state, no recorder row."""
+        return {
+            "screen_sync": self.screen_sync,
+            "receiving": self.receiving,
+            "available": self._device.available,
+            "rate_hz": self.rate_hz,
+            "timeout_s": self.timeout_s,
+            "frames_received": self.frames_received,
+            "frames_dropped": self.frames_dropped,
+            "writes_sent": self.writes_sent,
+            "write_errors": self._device.stream_errors,
+        }
+
     @callback
     def shutdown(self) -> None:
         self._stop_receiving()

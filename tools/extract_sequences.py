@@ -122,7 +122,7 @@ def main(paths: list[str]) -> None:
     print()
     print("MIC_EQ_PRESETS: dict[str, str] = {")
     for name, h in mic_eq.items():
-        print(f"    {name!r}: \"{h}\",")
+        print(f'    {name!r}: "{h}",')
     print("}")
 
 

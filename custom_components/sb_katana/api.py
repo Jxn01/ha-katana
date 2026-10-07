@@ -1,7 +1,9 @@
 """The PC's screen-sync endpoint, and the equivalent service.
 
 ``POST /api/sb_katana/stream`` with ``{"rgb": [r, g, b]}`` and a long-lived
-token. It is an HTTP view rather than a service on purpose: every service call
+token; ``GET`` on the same path answers the stream's status (Screen sync,
+receiving, whether the soundbar is connected, counters) for the PC's
+diagnostics. It is an HTTP view rather than a service on purpose: every service call
 fires a ``call_service`` bus event, the recorder stores every event (this HA has
 no exclusions), and at 10 Hz that would be ~36,000 rows an hour. A view fires
 no event. The ``stream_frame`` service exists for automations and tests.
@@ -66,6 +68,13 @@ class KatanaStreamView(HomeAssistantView):
         except StreamTargetError as err:
             return self.json_message(str(err), HTTPStatus.NOT_FOUND)
         return self.json({"accepted": stream.handle_frame(body[ATTR_RGB])})
+
+    async def get(self, request: web.Request) -> web.Response:
+        try:
+            stream = _stream_for(request.app[KEY_HASS], request.query.get(ATTR_CONFIG_ENTRY_ID))
+        except StreamTargetError as err:
+            return self.json_message(str(err), HTTPStatus.NOT_FOUND)
+        return self.json(stream.status())
 
 
 @callback
