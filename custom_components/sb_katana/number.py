@@ -59,9 +59,10 @@ def _pct(key: str, value, set_value) -> KatanaNumberDescription:
     )
 
 
-def _mixer(key: str, family: str, channel: int) -> KatanaNumberDescription:
+def _mixer(key: str, family: str, channel: int, *, enabled: bool = True) -> KatanaNumberDescription:
     return KatanaNumberDescription(
         key=key,
+        entity_registry_enabled_default=enabled,
         native_min_value=0,
         native_max_value=100,
         native_step=100 / p.LEVEL_MAX,
@@ -84,8 +85,9 @@ NUMBERS: tuple[KatanaNumberDescription, ...] = (
     _mixer("line_in_level", "mixer", p.CH_LINE_IN),
     _mixer("spdif_in_level", "mixer", p.CH_SPDIF_IN),
     _mixer("microphone_level", "mixer", p.CH_MICROPHONE),
-    _mixer("headphones_level", "mixer_probable", p.CH_HEADPHONES),
-    _mixer("what_u_hear_level", "mixer_probable", p.CH_WHAT_U_HEAR),
+    # Reported not working (2026-10-07); headphones are not used here, so hidden by default.
+    _mixer("headphones_level", "headphones_level", p.CH_HEADPHONES, enabled=False),
+    _mixer("what_u_hear_level", "what_u_hear", p.CH_WHAT_U_HEAR),
     KatanaNumberDescription(
         key="subwoofer",
         native_min_value=p.SUB_MIN,

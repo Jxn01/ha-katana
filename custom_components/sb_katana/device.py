@@ -89,6 +89,17 @@ class KatanaState:
     def store_sub(self) -> int:
         return p.STORE_SUB_HEADPHONES if self.output == "headphones" else p.STORE_SUB_SPEAKERS
 
+    def stored_modes(self) -> dict[str, int]:
+        """Sound-mode name -> the first slot holding it (slots 4-10 all read "Effects Off")."""
+        modes: dict[str, int] = {}
+        for slot in sorted(self.mode_names):
+            modes.setdefault(self.mode_names[slot], slot)
+        return modes
+
+    @property
+    def mode_name(self) -> str | None:
+        return self.mode_names.get(self.mode_active) if self.mode_active is not None else None
+
 
 def apply_frame(state: KatanaState, raw: bytes) -> bool:
     """Fold one inbound frame into ``state``. Returns True if anything changed.

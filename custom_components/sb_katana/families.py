@@ -29,23 +29,29 @@ _ALL = (
     # Proven over BLE on 2026-10-06: the owner watched the bar turn blue.
     Family("light_power", "C", True, "Lighting on/off"),
     Family("light_solo", "C", True, "Lighting solid colour"),
-    Family("light_preset", "C", False, "Lighting presets"),
-    Family("output", "C", False, "Output (Speakers/Headphones)"),
+    # Confirmed live by the owner on 2026-10-07 (morning checklist).
+    Family("light_preset", "C", True, "Lighting presets"),
+    Family("output", "C", True, "Output (Speakers/Headphones)"),
+    Family("auto_switch", "C", True, "Auto switch to TV/HDMI"),
+    Family("volume", "C", True, "Speaker volume"),
+    Family("mute", "C", True, "Mute"),
+    Family("decoder", "C", True, "Decoder"),
+    Family("eq_enable", "C", True, "Equalizer on/off"),
+    Family("eq_preset", "C", True, "Equalizer presets"),
+    Family("acoustic", "C", True, "Acoustic Engine"),
+    Family("crystalvoice", "C", True, "CrystalVoice"),
+    Family("scout", "C", True, "Scout Mode"),
+    Family("mixer", "C", True, "Mixer (Line In, SPDIF In, Microphone)"),
+    Family("smart_volume_detail", "C", True, "Smart Volume level and mode"),
+    Family("what_u_hear", "C", True, "Mixer (What U Hear)"),
+    Family("subwoofer", "C", True, "Subwoofer level"),
+    # Not yet tried: only reachable inside the media player until 2026-10-07, so the
+    # owner could not find them during the checklist.
     Family("input", "C", False, "Input source"),
-    Family("auto_switch", "C", False, "Auto switch to TV/HDMI"),
-    Family("volume", "C", False, "Speaker volume"),
-    Family("mute", "C", False, "Mute"),
     Family("sound_mode", "C", False, "Sound mode"),
-    Family("decoder", "C", False, "Decoder"),
-    Family("eq_enable", "C", False, "Equalizer on/off"),
-    Family("eq_preset", "C", False, "Equalizer presets"),
-    Family("acoustic", "C", False, "Acoustic Engine"),
-    Family("crystalvoice", "C", False, "CrystalVoice"),
-    Family("scout", "C", False, "Scout Mode"),
-    Family("mixer", "C", False, "Mixer (Line In, SPDIF In, Microphone)"),
-    Family("smart_volume_detail", "P", False, "Smart Volume level and mode"),
-    Family("mixer_probable", "P", False, "Mixer (Headphones, What U Hear)"),
-    Family("subwoofer", "P", False, "Subwoofer level"),
+    # Reported not working (2026-10-07). Headphones are not used with this soundbar,
+    # so it stays unconfirmed and its entity is disabled by default.
+    Family("headphones_level", "P", False, "Headphones level"),
 )
 
 FAMILIES: dict[str, Family] = {f.key: f for f in _ALL}

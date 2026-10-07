@@ -45,13 +45,45 @@ def _smart_volume_mode(device: KatanaDevice) -> str | None:
     return next((label for label, code in _SMART_VOLUME_MODES.items() if code == round(value)), None)
 
 
+def _input_options(device: KatanaDevice) -> list[str]:
+    ids = device.state.inputs or list(p.INPUT_LABELS)
+    return [p.INPUT_LABELS[i] for i in ids if i in p.INPUT_LABELS]
+
+
+async def _choose_input(device: KatanaDevice, label: str) -> None:
+    ids = {name: i for i, name in p.INPUT_LABELS.items()}
+    await device.set_input(ids[label])
+
+
+async def _choose_mode(device: KatanaDevice, name: str) -> None:
+    await device.select_mode(device.state.stored_modes()[name])
+
+
 @dataclass(frozen=True, kw_only=True)
 class KatanaSelectDescription(SelectEntityDescription):
     current: Callable[[KatanaDevice], str | None]
     choose: Callable[[KatanaDevice, str], Awaitable[None]]
+    # Options read from the soundbar (its input list, its stored modes) rather than fixed.
+    options_fn: Callable[[KatanaDevice], list[str]] | None = None
 
 
 SELECTS: tuple[KatanaSelectDescription, ...] = (
+    # Input and sound mode are also on the media player; as selects they show up on
+    # the device page and in dashboards, where the owner looked for them.
+    KatanaSelectDescription(
+        key="input",
+        options=[],
+        options_fn=_input_options,
+        current=lambda d: p.INPUT_LABELS.get(d.state.input) if d.state.input is not None else None,
+        choose=_choose_input,
+    ),
+    KatanaSelectDescription(
+        key="sound_mode",
+        options=[],
+        options_fn=lambda d: list(d.state.stored_modes()),
+        current=lambda d: d.state.mode_name,
+        choose=_choose_mode,
+    ),
     KatanaSelectDescription(
         key="output",
         options=["Speakers", "Headphones"],
@@ -93,8 +125,15 @@ class KatanaSelect(KatanaEntity, SelectEntity):
         self.entity_description = description
 
     @property
+    def options(self) -> list[str]:
+        if self.entity_description.options_fn is not None:
+            return self.entity_description.options_fn(self._device)
+        return super().options
+
+    @property
     def current_option(self) -> str | None:
-        return self.entity_description.current(self._device)
+        current = self.entity_description.current(self._device)
+        return current if current in self.options else None
 
     async def async_select_option(self, option: str) -> None:
         if option not in self.options:

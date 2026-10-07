@@ -65,7 +65,7 @@ async def test_states_after_read_back(hass, entry):
 async def test_unconfirmed_write_is_refused(hass, entry, fake):
     before = len(fake.writes)
     with pytest.raises(HomeAssistantError, match="not been confirmed"):
-        await call(hass, "media_player", "volume_set", eid(hass, "media_player", "soundbar"), volume_level=0.5)
+        await call(hass, "select", "select_option", eid(hass, "select", "input"), option="Optical")
     assert fake.writes_since(before) == []
 
 
@@ -92,9 +92,39 @@ async def test_light_turn_off(hass, entry, fake):
     assert state(hass, "light", "lighting").state == "off"
 
 
-async def test_light_preset_needs_confirmation(hass, entry):
+async def test_sound_mode_needs_confirmation(hass, entry, fake):
+    before = len(fake.writes)
     with pytest.raises(HomeAssistantError, match="not been confirmed"):
-        await call(hass, "light", "turn_on", eid(hass, "light", "lighting"), effect="Aurora")
+        await call(hass, "select", "select_option", eid(hass, "select", "sound_mode"), option="Gaming.")
+    assert fake.writes_since(before) == []
+
+
+async def test_input_and_sound_mode_are_selects_too(hass, entry):
+    source = state(hass, "select", "input")
+    assert source.state == "USB Audio"
+    assert source.attributes["options"] == ["TV", "USB Audio", "Optical", "Aux", "Bluetooth"]
+    mode = state(hass, "select", "sound_mode")
+    assert mode.state == "Music."
+    assert mode.attributes["options"] == ["Music.", "Gaming.", "Voice.", "Effects Off"]
+
+
+@pytest.mark.parametrize("allow_unconfirmed", [True])
+async def test_input_and_sound_mode_selects_send_the_captured_bytes(hass, entry, fake):
+    before = len(fake.writes)
+    await call(hass, "select", "select_option", eid(hass, "select", "input"), option="Optical")
+    assert fake.writes_since(before)[0] == "5a9c03000700"
+    assert state(hass, "select", "input").state == "Optical"
+    before = len(fake.writes)
+    await call(hass, "select", "select_option", eid(hass, "select", "sound_mode"), option="Gaming.")
+    assert fake.writes_since(before)[0] == "5aa7020002"
+    assert state(hass, "select", "sound_mode").state == "Gaming."
+    assert state(hass, "media_player", "soundbar").attributes["sound_mode"] == "Gaming."
+
+
+async def test_headphones_level_is_disabled_by_default(hass, entry):
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("number", DOMAIN, f"{FAKE_ADDRESS}_headphones_level")
+    assert registry.async_get(entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
 
 
 @pytest.mark.parametrize("allow_unconfirmed", [True])
@@ -178,7 +208,8 @@ async def test_diagnostics_redact_identifiers(hass, entry):
 
 
 async def test_a_refused_light_command_leaves_screen_sync_alone(hass, entry):
-    with pytest.raises(HomeAssistantError, match="not been confirmed"):
+    entry.runtime_data.device.state.firmware = "1.30.260813.1100"  # the firmware gate refuses everything
+    with pytest.raises(HomeAssistantError, match="firmware"):
         await call(hass, "light", "turn_on", eid(hass, "light", "lighting"), effect="Aurora")
     assert state(hass, "switch", "screen_sync").state == "on"
 

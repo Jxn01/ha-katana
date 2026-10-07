@@ -64,20 +64,13 @@ class KatanaMediaPlayer(KatanaEntity, MediaPlayerEntity):
     def source(self) -> str | None:
         return p.INPUT_LABELS.get(self._device.state.input)
 
-    def _modes(self) -> dict[str, int]:
-        """Stored mode names -> the first slot holding each (slots 4-10 all read "Effects Off")."""
-        modes: dict[str, int] = {}
-        for slot in sorted(self._device.state.mode_names):
-            modes.setdefault(self._device.state.mode_names[slot], slot)
-        return modes
-
     @property
     def sound_mode_list(self) -> list[str]:
-        return list(self._modes())
+        return list(self._device.state.stored_modes())
 
     @property
     def sound_mode(self) -> str | None:
-        return self._device.state.mode_names.get(self._device.state.mode_active)
+        return self._device.state.mode_name
 
     async def async_set_volume_level(self, volume: float) -> None:
         await self._device.set_volume(round(volume * p.LEVEL_MAX))
@@ -104,7 +97,7 @@ class KatanaMediaPlayer(KatanaEntity, MediaPlayerEntity):
         await self._device.set_input(ids[source])
 
     async def async_select_sound_mode(self, sound_mode: str) -> None:
-        modes = self._modes()
+        modes = self._device.state.stored_modes()
         if sound_mode not in modes:
             raise ServiceValidationError(f"unknown sound mode {sound_mode!r}")
         await self._device.select_mode(modes[sound_mode])

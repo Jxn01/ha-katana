@@ -74,20 +74,23 @@ offered.
 
 | Entity | Options | Gate |
 |---|---|---|
+| **Input** | Read from the soundbar: TV, USB Audio, Optical, Aux, Bluetooth. Also on the media player | `input` |
+| **Sound mode** | The modes stored on the soundbar, e.g. "Music.", "Gaming.", "Voice.", "Effects Off". Also on the media player | `sound_mode` |
 | **Output** | Speakers, Headphones | `output` |
 | **Decoder** | Normal, Full, Night (Dolby dynamic range control) | `decoder` |
 | **EQ preset** | Gaming, Music, Movies, Footsteps Enhancer: the four presets whose full curves were captured from the app | `eq_preset` |
-| **Smart Volume mode** | Mode 1, Mode 2, Mode 3. The soundbar stores 0/1/2; the app's labels for them were not captured | `smart_volume_detail` (probable) |
+| **Smart Volume mode** | Mode 1, Mode 2, Mode 3. The soundbar stores 0/1/2; the app's labels for them were not captured | `smart_volume_detail` |
 
 ### Numbers
 
 | Entity | Range | Gate |
 |---|---|---|
 | **Surround level**, **Crystalizer level**, **Dialog+ level** | 0–100 | `acoustic` |
-| **Smart Volume level** | 0–100 | `smart_volume_detail` (probable) |
+| **Smart Volume level** | 0–100 | `smart_volume_detail` |
 | **Line In level**, **SPDIF In level**, **Microphone level** | 0–100 % in steps of 2 | `mixer` |
-| **Headphones level**, **What U Hear level** | 0–100 % in steps of 2 | `mixer_probable` (probable) |
-| **Subwoofer** | −10 … +6 dB | `subwoofer` (probable) |
+| **What U Hear level** | 0–100 % in steps of 2 | `what_u_hear` |
+| **Headphones level** | 0–100 % in steps of 2. **Disabled by default**: reported not working, and not verifiable without headphones | `headphones_level` |
+| **Subwoofer** | −10 … +6 dB | `subwoofer` |
 
 Acoustic Engine, Decoder and EQ settings exist separately for Speakers and Headphones. These entities show
 and change the side that matches the current **Output**, exactly as the app's two tabs do.
@@ -158,8 +161,9 @@ service, **`sb_katana.stream_frame`**, exists for automations and tests:
   (`0x53`) or device-memory access (`0x54`). The soundbar's second GATT service is never touched. Guard
   tests fail the build if any of that appears, and each guard has a positive control.
 - **The confirmation gate.** A command family is enabled by default only once the owner has seen or heard it
-  work over BLE. Today that is lighting power and solid colour. Everything else works only with
-  **Allow unconfirmed controls** on, until it is confirmed and enabled in `families.py`.
+  work over BLE. As of 2026-10-07 that is every family except **Input**, **Sound mode** (not yet tried) and
+  **Headphones level** (reported not working). Those three work only with **Allow unconfirmed controls** on,
+  until they are confirmed and enabled in `families.py`.
 - **State comes only from the soundbar.** A value changes when the soundbar reports it or acknowledges a
   write. A refusal (status ≠ 0) keeps the old value. No answer means the outcome is unknown: the value is
   cleared and re-read. The firmware (and so the write gate) is re-read on every reconnect. Nothing is written
