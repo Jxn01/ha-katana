@@ -183,7 +183,11 @@ python3.14 -m venv ~/.local/share/venvs/ha-katana      # never a venv inside the
 | `tools/` | Capture decoders (`frames.py`, `pairs.py`) and the sequence generator |
 | `tests/` | Golden vectors, guards, a fake soundbar answering with captured replies, HA-harness tests |
 
+CI runs ruff and pytest on Python 3.14 and hassfest. HACS validation is left out while the repository is
+private, because it reads the repository through the API and cannot see a private one. Add
+`hacs/action` back if the repository is made public.
+
 ## Licence
 
-MIT. Parts of `protocol.py` are translated from the [`v2x`](https://git.dog/xx/v2x) crate by Rasmus Moorats
+MIT (`LICENSE`); attribution in `NOTICE`. Parts of `protocol.py` are translated from the [`v2x`](https://git.dog/xx/v2x) crate by Rasmus Moorats
 (MIT).

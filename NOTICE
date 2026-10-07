@@ -1,0 +1,3 @@
+Portions of custom_components/sb_katana/protocol.py are a translation of the
+v2x crate (https://git.dog/xx/v2x), Copyright (c) 2026 Rasmus Moorats, used
+under the MIT License.
