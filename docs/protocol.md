@@ -70,7 +70,8 @@ The device pushes state frames on changes. In this capture they came after app w
 - `6f` (stream-format) frames while an input syncs.
 
 **The volume knob does push them**: HA followed the knob instantly (owner, 2026-10-07), so `23`/`24`
-notifications arrive unsolicited. The parser must tolerate unknown opcodes.
+notifications arrive unsolicited. **So do USB writes**: in the second capture, ambience-rgb's colour writes over
+USB reached the BLE client as unsolicited `3a 2c 00 01 01 …` notifications. The parser must tolerate unknown opcodes.
 
 ## Opcodes and sub-commands
 
@@ -276,7 +277,8 @@ White). Per-mode slots `81`–`8a` are all `EMPTY`.
 | `3A 21` | `06 00 01 03 04 05 07 08`: supported modes | confirmed |
 | `3A 22 <mode>` | per-mode parameter descriptor | probable |
 | `3A 24 <slot>` | per-LED colour-slot map | probable |
-| `3A 27 <level>` | brightness (v2x crate) | **not captured** — the app has no brightness control |
+| `3A 27 <0-255>` | **Global Brightness** (Lighting page slider); ACKed, then notified as `3a 28 <level>` | confirmed (2nd capture, 252 → 183 → 255) |
+| `3A 28` → `28 <level>` | brightness read (the first capture's `3a 28` → `28 ff` was this) | confirmed |
 
 A **preset load** is: `34` uuid → `31` name → `25 00` → `29` mode → `37` count → `2b` params
 → `25 01`. The nine captured loads (Aurora, Cycle, Mood Orange, Morph Cyan, Pulsate Red, Solo
@@ -294,14 +296,65 @@ White, Wave Green, Wave Ice Blue, Wave Rainbow) are stored verbatim in `captured
 The app's settings gear offers firmware **1.30.260813.1100**. It is never taken, and the
 integration never offers updates.
 
+## Third capture (2026-10-07 12:54–12:58) — EQ, Smart Volume, microphone, device settings
+
+Taken with the app's pages and the screenshots in `~/Downloads/katana-capture-3/app-screens/` (not in git).
+Everything below was ACKed with status 00.
+
+### Main EQ bands — `0xA8` live slot `00`
+
+| | |
+|---|---|
+| Indices | `00` preamp · `01`–`0a` the ten bands 31 Hz … 16 kHz · `0b` bass · `0c` treble. Bass and treble mirror bands 62 Hz and 8 kHz: they are the two dots on the app's curve |
+| Read | `A8 11 00 00 <sub> 0a 00 01 … 09`, then `A8 11 00 00 <sub> 03 0a 0b 0c` → `11 00 00 <sub> <n> (idx f32)…` |
+| Band drag | once: `A8 0B 00 00 <sub> <16 zero bytes>`, which marks the live EQ custom so its name becomes "Onboard". Then per step: `A8 10 00 00 <sub> 0a (01..0a f32)` — **all ten bands every time**, ±9 dB |
+| Preamp drag | not captured |
+| "Save as preset", rename, delete | **app-side**. Save writes a random identity and the typed name into the live EQ (slot `ff`); rename rewrites the name; delete falls back to **Flat** (`…000a`, all zeros). The user's presets live in the app, not on the soundbar |
+
+### Smart Volume (Acoustic Engine) — store keys `01.06/.07/.08`
+
+`01.08` is the mode:
+
+- **0 = Manual**: the level slider applies (`01.07`, 0–1);
+- **1 = Loud**;
+- **2 = Night**.
+
+These are the app's Night and Loud buttons; with neither selected, the slider applies. The screenshots confirm
+it: 74 → Night → Loud → 25.
+
+### Microphone — `0x2D` priority, `0x12` Focus angle and mic EQ
+
+| | |
+|---|---|
+| Priority | Writes `2D 05 <n> <ids…>`: `05 02 01 00`, `05 02 00 01`, `05 00`. Read `2D 01` → `01 <n> <ids…>`; the first capture read `01 02 00 01` while the app showed **Auto**. Labels inferred: Auto = `00 01`, Headset Microphone = `01 00`, Microphone Array = empty — **probable** |
+| Focus angle | `12 01 9508 <f32>`; the app's slider spans **20–180°** |
+| Mic EQ preset | `9513` = 1 (on), then `12 08` with the eight bands `9514`–`951b` in one frame. Off = `9513` = 0. The eleven presets from the first capture are in `captured.MIC_EQ_PRESETS`, labelled in the app's list order because the first capture tapped them top to bottom — **probable** |
+
+### Device settings — `0x39`
+
+| Command | Meaning | Tier |
+|---|---|---|
+| `39 00 11 <0\|1>` | Energy Saving off/on | confirmed (readback bit) |
+| `39 00 18 <0\|1>` | HDMI CEC Standby Link off/on | confirmed (readback) |
+| `39 01` → `01 00 00 <flags> <cec>` | state: flags bit `0x02` = energy saving, last byte = CEC link | confirmed |
+| `39 07 11 0f000000 <u32>` | Auto Standby, in minutes **beyond** the fixed 15-min network standby: 28 h = 1665, 8 h = 465, 2 h = 105, 1 h = 45, 30 min = 15, Never = 0 | confirmed |
+| `39 06 11` → `06 11 0f000000 <u32> 00000000 01000000` | Auto Standby read | confirmed |
+| `39 07 12 <a> <b>` | Display: **Bright = `07 00`** (readback) · Dark = `02 00` · Off = `02 05` (from tap order) | probable |
+| `39 06 12` → `06 12 <a> <b>` | Display read | confirmed |
+
+### App-side only (not exposed)
+
+Sound-mode **add, rename and delete** write a new identity and name into the live mode (slot `ff`), the same way
+an app template is loaded. Delete falls back to the "Movies" template. The soundbar keeps only its own stored
+slots.
+
 ## Not captured
 
 - **Super X-Fi** — greyed out on Speakers, never toggled. No frames.
-- **Main EQ band drag**, Bass/Treble sliders — the values are readable (`A8 11`, `0x11`), but
-  no write was captured.
-- **Lighting brightness** — the app has no such control.
-- **Custom Buttons**, the Bluetooth pairing sub-page, sound-mode create/rename/delete.
-- **Smart Volume mode names** (the values 0/1/2 are known, the labels are not).
+- ~~Main EQ band drag, Lighting brightness, Smart Volume mode names, sound-mode create/rename/delete~~ — all in
+  the second and third captures (below).
+- **Preamp drag** — still not captured.
+- **Custom Buttons** and **Super X-Fi** — not wanted by the owner (2026-10-07).
 
 ## State the capture left behind
 
