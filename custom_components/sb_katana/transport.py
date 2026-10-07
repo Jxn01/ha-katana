@@ -28,6 +28,12 @@ _LOGGER = logging.getLogger(__name__)
 # longer than one Write Command can carry is refused rather than split.
 _MIN_WRITE = 20
 
+# The soundbar advertises with flags 0x0A, which habluetooth's passive-scan
+# patterns (0x02 0x04 0x05 0x06 0x18 0x1A) do not match. A passively scanning
+# adapter therefore hears it but BlueZ never puts it on the bus, and bleak
+# cannot connect. An on-demand active sweep puts it there.
+_ACTIVE_SWEEP_SECONDS = 10.0
+
 
 class BleakTransport:
     def __init__(self, hass: HomeAssistant, address: str) -> None:
@@ -58,6 +64,9 @@ class BleakTransport:
     async def connect(self) -> None:
         if self.connected:
             return
+        if not bluetooth.async_scanner_devices_by_address(self._hass, self._address, connectable=True):
+            _LOGGER.debug("Katana not on any scanner's bus (passive scanning); requesting an active sweep")
+            await bluetooth.async_request_active_scan(self._hass, _ACTIVE_SWEEP_SECONDS)
         ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address, connectable=True)
         if ble_device is None:
             raise KatanaCommandError(f"soundbar {self._address} is not in range of a connectable Bluetooth adapter")
