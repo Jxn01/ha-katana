@@ -213,7 +213,7 @@
     },
     "binary_sensor": {
       "screen_sync_receiving": {
-        "name": "Képernyő-szinkron jel"
+        "name": "Képernyő-szinkron vétel"
       }
     },
     "button": {
