@@ -115,7 +115,18 @@ async def test_light_brightness_is_the_soundbars_own(hass, entry, fake):
     assert light.attributes["rgb_color"] == (255, 0, 0) and light.attributes["brightness"] == 128
 
 
-async def test_light_brightness_is_gated_until_confirmed(hass, entry, fake):
+async def test_an_unconfirmed_family_is_refused_at_the_entity(hass, entry, fake, monkeypatch):
+    # The gate itself, independent of today's table: mark a family unconfirmed and the
+    # entity must refuse without a byte reaching the soundbar.
+    import dataclasses
+
+    from custom_components.sb_katana import families
+
+    monkeypatch.setitem(
+        families.FAMILIES,
+        "light_brightness",
+        dataclasses.replace(families.FAMILIES["light_brightness"], confirmed=False),
+    )
     before = len(fake.writes)
     with pytest.raises(HomeAssistantError, match="not been confirmed"):
         await call(hass, "light", "turn_on", eid(hass, "light", "lighting"), brightness=128)

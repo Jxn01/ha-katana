@@ -168,8 +168,16 @@ def test_every_raised_key_has_both_translations():
             assert key in tree["exceptions"] or key in tree["issues"], (lang, key)
 
 
-async def test_the_ui_gets_the_translation_key_from_a_refused_write(hass, entry):
+async def test_the_ui_gets_the_translation_key_from_a_refused_write(hass, entry, monkeypatch):
+    import dataclasses
+
     from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.sb_katana import families
+
+    monkeypatch.setitem(
+        families.FAMILIES, "energy_saving", dataclasses.replace(families.FAMILIES["energy_saving"], confirmed=False)
+    )
 
     eid = er.async_get(hass).async_get_entity_id("switch", DOMAIN, f"{FAKE_ADDRESS}_energy_saving")
     with pytest.raises(HomeAssistantError) as caught:

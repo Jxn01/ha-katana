@@ -64,19 +64,9 @@ async def test_confirmed_families_match_the_owners_checklist():
     from custom_components.sb_katana.families import FAMILIES
 
     unconfirmed = {key for key, family in FAMILIES.items() if not family.confirmed}
-    assert unconfirmed == {
-        "headphones_level",
-        # third capture, not yet tried from HA:
-        "light_brightness",
-        "eq_bands",
-        "focus_angle",
-        "energy_saving",
-        "auto_standby",
-        "cec_link",
-        "mic_priority",
-        "mic_eq_preset",
-        "display",
-    }
+    # The third capture's nine families were tried from HA and confirmed on 2026-10-08.
+    # Headphones level was reported not working (headphones are not used) and stays gated.
+    assert unconfirmed == {"headphones_level"}
 
 
 async def test_unconfirmed_family_allowed_when_opted_in():

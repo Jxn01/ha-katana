@@ -216,10 +216,12 @@ service, **`sb_katana.stream_frame`**, exists for automations and tests:
   (`0x53`) or device-memory access (`0x54`). The soundbar's second GATT service is never touched. Guard
   tests fail the build if any of that appears, and each guard has a positive control.
 - **The confirmation gate.** A command family is enabled by default only once the owner has seen or heard it
-  work over BLE. As of 2026-10-07 midday that is every family from the first capture except **Headphones
-  level** (reported not working). The families from the third capture — `light_brightness`, `eq_bands`,
-  `focus_angle`, `energy_saving`, `auto_standby`, `cec_link`, `mic_priority`, `mic_eq_preset`, `display` — work only
-  with **Allow unconfirmed controls** on until the owner has tried them.
+  work over BLE. Since 2026-10-08 that is **every family except Headphones level** (reported not working;
+  headphones are not used with this soundbar, so its entity is also disabled by default). The third capture's
+  families — `light_brightness`, `eq_bands`, `focus_angle`, `energy_saving`, `auto_standby`, `cec_link`,
+  `mic_priority`, `mic_eq_preset`, `display` — were tried from HA by the owner and confirmed on 2026-10-08,
+  including the labels that had been inferred from tap order. **Allow unconfirmed controls** now only matters for
+  Headphones level.
 - **State comes only from the soundbar.** A value changes when the soundbar reports it or acknowledges a
   write. A refusal (status ≠ 0) keeps the old value. No answer means the outcome is unknown: the value is
   cleared and re-read. The firmware (and so the write gate) is re-read on every reconnect. Nothing is written

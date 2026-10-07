@@ -51,18 +51,17 @@ _ALL = (
     # Reported not working (2026-10-07). Headphones are not used with this soundbar,
     # so it stays unconfirmed and its entity is disabled by default.
     Family("headphones_level", "P", False, "Headphones level"),
-    # From the third capture (2026-10-07 12:54-12:58): bytes, readback and screenshots,
-    # not yet tried from HA.
-    Family("light_brightness", "C", False, "Lighting brightness"),
-    Family("eq_bands", "C", False, "Equalizer bands"),
-    Family("focus_angle", "C", False, "Microphone Focus angle"),
-    Family("energy_saving", "C", False, "Energy Saving"),
-    Family("auto_standby", "C", False, "Auto Standby"),
-    Family("cec_link", "C", False, "HDMI CEC Standby Link"),
-    # Bytes captured, but which label is which is inferred from tap order.
-    Family("mic_priority", "P", False, "Microphone Priority"),
-    Family("mic_eq_preset", "P", False, "Microphone Equalizer presets"),
-    Family("display", "P", False, "Display brightness"),
+    # From the third capture (2026-10-07 12:54-12:58), tried from HA by the owner on
+    # 2026-10-08 ~00:50: "they are all correct" -- the labels inferred from tap order too.
+    Family("light_brightness", "C", True, "Lighting brightness"),
+    Family("eq_bands", "C", True, "Equalizer bands"),
+    Family("focus_angle", "C", True, "Microphone Focus angle"),
+    Family("energy_saving", "C", True, "Energy Saving"),
+    Family("auto_standby", "C", True, "Auto Standby"),
+    Family("cec_link", "C", True, "HDMI CEC Standby Link"),
+    Family("mic_priority", "C", True, "Microphone Priority"),
+    Family("mic_eq_preset", "C", True, "Microphone Equalizer presets"),
+    Family("display", "C", True, "Display brightness"),
 )
 
 FAMILIES: dict[str, Family] = {f.key: f for f in _ALL}
