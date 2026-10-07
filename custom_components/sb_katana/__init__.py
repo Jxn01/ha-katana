@@ -85,18 +85,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: KatanaConfigEntry) -> bo
         await device.stop()
         raise ConfigEntryNotReady(f"Katana at {address} did not answer: {err}") from err
 
-    if device.firmware_ok:
-        ir.async_delete_issue(hass, DOMAIN, f"untested_firmware_{entry.entry_id}")
-    else:
-        ir.async_create_issue(
-            hass,
-            DOMAIN,
-            f"untested_firmware_{entry.entry_id}",
-            is_fixable=False,
-            severity=ir.IssueSeverity.WARNING,
-            translation_key="untested_firmware",
-            translation_placeholders={"found": str(device.state.firmware), "tested": protocol.TESTED_FIRMWARE},
-        )
+    issue_id = f"untested_firmware_{entry.entry_id}"
+    shown: list[str | None] = [None]
+
+    def _sync_firmware_issue() -> None:
+        """Re-checked on every verified (re)connect: the app could update the firmware meanwhile."""
+        if not device.available or device.state.firmware == shown[0]:
+            return
+        shown[0] = device.state.firmware
+        if device.firmware_ok:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+        else:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="untested_firmware",
+                translation_placeholders={"found": str(device.state.firmware), "tested": protocol.TESTED_FIRMWARE},
+            )
+
+    _sync_firmware_issue()
+    entry.async_on_unload(device.add_listener(_sync_firmware_issue))
 
     stream = StreamController(
         hass,

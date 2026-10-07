@@ -181,6 +181,8 @@ async def test_start_fails_when_unreachable():
     device = dev.KatanaDevice(fake)
     with pytest.raises(TimeoutError):
         await device.start()
+    assert not device.available
+    await device.stop()  # what setup does on failure
 
 
 async def test_reads_that_time_out_are_retried_once(monkeypatch):
@@ -220,4 +222,113 @@ async def test_poll_heals_reads_that_failed_at_connect(monkeypatch):
     before = len(fake.writes)
     await device.refresh()
     assert len(fake.writes_since(before)) == 6
+    await device.stop()
+
+
+# --- review findings (2026-10-07) -----------------------------------------------------------
+
+
+async def test_failed_read_back_after_reconnect_drops_the_link_and_retries(monkeypatch):
+    monkeypatch.setattr(dev, "REPLY_TIMEOUT", 0.05)
+    monkeypatch.setattr(dev, "RECONNECT_BACKOFF", (0.01,))
+    fake, device = await started()
+    firmware = p.firmware_query().frame.hex()
+    fake.silent.add(firmware)  # the identity read is lost on the first reconnect
+    original = fake.write
+
+    async def lose_once(data: bytes) -> None:
+        await original(data)
+        if data.hex() == firmware:
+            fake.silent.discard(firmware)
+
+    fake.write = lose_once
+    fake.drop()
+    assert not device.available
+    for _ in range(100):
+        await asyncio.sleep(0.02)
+        if device.available:
+            break
+    assert device.available and device.firmware_ok
+    assert fake.writes.count(firmware) >= 3  # setup, the lost one, the retry
+    await device.stop()
+
+
+async def test_identity_is_not_trusted_across_a_disconnect():
+    fake, device = await started()
+    assert device.firmware_ok
+    device.hold_connection = False
+    fake.drop()
+    assert not device.available and not device.firmware_ok  # the old firmware read no longer counts
+    await device.stop()
+
+
+async def test_no_answer_forgets_the_value_but_a_refusal_keeps_it(monkeypatch):
+    monkeypatch.setattr(dev, "REPLY_TIMEOUT", 0.05)
+    fake, device = await started(allow_unconfirmed=True)
+    # Refused: the old value stands.
+    fake.status["5a26050702000100"] = 0x81
+    with pytest.raises(dev.KatanaRejectedError):
+        await device.set_scout(True)
+    assert device.state.scout is False
+    # Unanswered, and the re-read is lost too: unknown, not the old value.
+    fake.silent.update({"5a26050702000100", p.scout_query().frame.hex()})
+    fake.status.clear()
+    with pytest.raises(dev.KatanaCommandError):
+        await device.set_scout(True)
+    assert device.state.scout is None
+    await device.stop()
+
+
+async def test_a_late_ok_ack_does_not_answer_a_read():
+    _fake, device = await started()
+    task = asyncio.create_task(device.request(p.scout_query()))
+    await asyncio.sleep(0)
+    # The fake has queued the real reply; a stray status-00 ACK arriving first must not win.
+    device._on_frame(bytes.fromhex("5a020a26000000000000000000"))
+    frame = await task
+    assert frame.op == 0x26
+    await device.stop()
+
+
+async def test_store_write_refused_while_the_output_is_unknown():
+    fake, device = await started(allow_unconfirmed=True)
+    device.state.output = None
+    before = len(fake.writes)
+    with pytest.raises(dev.KatanaCommandError, match="output is unknown"):
+        await device.set_store("acoustic", p.KEY_SURROUND, 0.0)
+    assert fake.writes_since(before) == []
+    await device.stop()
+
+
+async def test_a_replaced_prepare_batch_carries_its_prepare_forward():
+    _fake, device = await started()
+    async with device._io_lock:  # hold the writer so both batches meet in the slot
+        device.submit_stream([*p.solo_prepare(), p.solo_colour((1, 1, 1))], prepare=True)
+        device.submit_stream([p.solo_colour((2, 2, 2))])
+        assert [c.frame.hex() for c in device._stream_slot.cmds] == [
+            *[c.frame.hex() for c in p.solo_prepare()],
+            p.solo_colour((2, 2, 2)).frame.hex(),
+        ]
+    await asyncio.sleep(0.05)
+    await device.stop()
+
+
+async def test_writer_survives_an_unexpected_error():
+    fake, device = await started()
+    results: list[bool] = []
+    original = fake.write
+    calls = {"n": 0}
+
+    async def explode_once(data: bytes) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("boom")
+        await original(data)
+
+    fake.write = explode_once
+    device.submit_stream([p.solo_colour((3, 3, 3))], on_done=results.append)
+    await asyncio.sleep(0.05)
+    device.submit_stream([p.solo_colour((4, 4, 4))], on_done=results.append)
+    await asyncio.sleep(0.05)
+    assert results == [False, True]
     await device.stop()

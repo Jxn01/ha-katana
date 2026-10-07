@@ -25,7 +25,8 @@
           "stream_timeout_s": "Screen sync hand-over (seconds without frames before the lights go off)"
         },
         "data_description": {
-          "allow_unconfirmed": "Controls whose commands were decoded from Creative's app but not yet confirmed working by you are refused until this is on. Turn it on to run the live checklist."
+          "allow_unconfirmed": "Controls whose commands were decoded from Creative's app but not yet confirmed working by you are refused until this is on. Turn it on to run the live checklist.",
+          "stream_timeout_s": "At least 10 s: the PC re-sends an unchanged colour every 5 s, so a shorter hand-over would blink the lights."
         }
       }
     }

@@ -172,3 +172,35 @@ async def test_diagnostics_redact_identifiers(hass, entry):
     assert "Q8MF0000000000000W" not in text
     assert diag["state"]["firmware"] == "1.3.230619.1820"
     assert diag["families"]["light_solo"]["confirmed"] is True
+
+
+# --- review findings (2026-10-07) -----------------------------------------------------------
+
+
+async def test_a_refused_light_command_leaves_screen_sync_alone(hass, entry):
+    with pytest.raises(HomeAssistantError, match="not been confirmed"):
+        await call(hass, "light", "turn_on", eid(hass, "light", "lighting"), effect="Aurora")
+    assert state(hass, "switch", "screen_sync").state == "on"
+
+
+@pytest.mark.parametrize("allow_unconfirmed", [True])
+async def test_volume_step_refuses_an_unknown_level(hass, entry, fake):
+    entry.runtime_data.device.state.levels.pop(p.CH_SPEAKERS)
+    before = len(fake.writes)
+    with pytest.raises(HomeAssistantError, match="unknown"):
+        await call(hass, "media_player", "volume_up", eid(hass, "media_player", "soundbar"))
+    assert fake.writes_since(before) == []
+
+
+async def test_firmware_issue_follows_a_reconnect(hass, entry, fake):
+    from homeassistant.helpers import issue_registry as ir
+
+    device = entry.runtime_data.device
+    issue_id = f"untested_firmware_{entry.entry_id}"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+    fake.firmware = "1.30.260813.1100"
+    fake.replies = fake._build_replies()
+    await device.refresh(full=True)  # what a reconnect does
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
+    assert not device.firmware_ok

@@ -141,8 +141,12 @@ class ScreenSyncSwitch(KatanaEntity, SwitchEntity, RestoreEntity):
         self._stream.set_screen_sync(False)
 
 
-class HoldConnectionSwitch(KatanaEntity, SwitchEntity):
-    """Off releases the Bluetooth link so Creative's app can connect (one central at a time)."""
+class HoldConnectionSwitch(KatanaEntity, SwitchEntity, RestoreEntity):
+    """Off releases the Bluetooth link so Creative's app can connect (one central at a time).
+
+    Restored across restarts and reloads: setup connects first (it has to, to read the
+    firmware), then this releases the link again if it was off.
+    """
 
     _attr_entity_category = EntityCategory.CONFIG
 
@@ -153,6 +157,12 @@ class HoldConnectionSwitch(KatanaEntity, SwitchEntity):
     def available(self) -> bool:
         return True
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_state()) is not None and last.state == "off":
+            self._device.hold_connection = False
+            self.hass.async_create_task(self._device.stop(), "sb_katana release link")
+
     @property
     def is_on(self) -> bool:
         return self._device.hold_connection
@@ -160,9 +170,9 @@ class HoldConnectionSwitch(KatanaEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         self._device.hold_connection = True
         try:
-            await self._device.start()
+            await self._device.start(keep_trying=True)
         except (KatanaCommandError, TimeoutError, OSError) as err:
-            raise HomeAssistantError(f"could not reconnect to the soundbar: {err}") from err
+            raise HomeAssistantError(f"could not reconnect to the soundbar yet (still trying): {err}") from err
         finally:
             self.async_write_ha_state()
 

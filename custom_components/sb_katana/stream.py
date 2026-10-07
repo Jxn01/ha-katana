@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from functools import partial
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
@@ -41,6 +42,7 @@ class StreamController:
         self._pending: Rgb | None = None
         self._last_sent: Rgb | None = None
         self._needs_prepare = True
+        self._prepared_generation = -1  # the device connection the last prepare went out on
         self._last_write_at = float("-inf")
         self._flush_unsub: CALLBACK_TYPE | None = None
         self._handover_unsub: CALLBACK_TYPE | None = None
@@ -90,15 +92,30 @@ class StreamController:
         rgb, self._pending = self._pending, None
         if rgb is None or not self.screen_sync:
             return
-        if rgb == self._last_sent and not self._needs_prepare:
+        # Prepare again after every (re)connect: the link may have dropped across a
+        # hand-over, or the Creative app may have changed the lighting meanwhile.
+        generation = self._device.connect_count
+        prepare = self._needs_prepare or generation != self._prepared_generation
+        if rgb == self._last_sent and not prepare:
             return
-        cmds = [*p.solo_prepare()] if self._needs_prepare else []
+        cmds = [*p.solo_prepare()] if prepare else []
         cmds.append(p.solo_colour(rgb))
-        self._device.submit_stream(cmds)
+        self._device.submit_stream(cmds, prepare=prepare, on_done=partial(self._batch_done, prepare))
         self._last_sent = rgb
         self._needs_prepare = False
+        if prepare:
+            self._prepared_generation = generation
         self._last_write_at = self._hass.loop.time()
         self.writes_sent += 1
+
+    def _batch_done(self, prepared: bool, ok: bool) -> None:
+        """A batch that never reached the soundbar is not 'sent': prepare and resend next time."""
+        if ok:
+            return
+        self._needs_prepare = True
+        self._last_sent = None
+        if prepared:
+            self._prepared_generation = -1
 
     @callback
     def _handover(self, _now) -> None:

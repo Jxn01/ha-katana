@@ -63,7 +63,7 @@ offered.
 | Entity | What it does | Gate |
 |---|---|---|
 | **Screen sync** | On by default. While on, colours posted by the PC are shown. Any manual lighting change turns it off; switch it back on to resume. Switching it off does not turn the lighting off. Restored across restarts. | — |
-| **Hold connection** (config) | On: keep the BLE link up and reconnect after drops (backoff 5 s → 5 min). Off: release the link so Creative's app can connect; entities become unavailable. | — |
+| **Hold connection** (config) | On: keep the BLE link up and reconnect after drops (backoff 5 s → 5 min). Off: release the link so Creative's app can connect; entities become unavailable. Restored across restarts: setup connects once to read the firmware, then lets go again. | — |
 | **Scout Mode** | Scout Mode on/off | `scout` |
 | **Auto switch to TV/HDMI** (config) | Switch to TV/HDMI automatically when it requests | `auto_switch` |
 | **Equalizer** | EQ on/off for the current output | `eq_enable` |
@@ -108,7 +108,7 @@ Downloadable diagnostics redact the address and serial number.
 |---|---|---|---|
 | **Allow unconfirmed controls** | off | — | Allows writes in families the owner has not yet confirmed live (see [Safety](#safety)). Turn it on to run the live checklist. |
 | **Screen sync rate** | 10 | 1–20 writes/s | The most colours per second sent to the soundbar. The newest colour always wins, and a colour equal to the last one is not re-sent. |
-| **Screen sync hand-over** | 10 s | 3–120 s | With no frame for this long, the lighting is turned off once. Screen sync stays on, so the next frame resumes. |
+| **Screen sync hand-over** | 10 s | 10–120 s | With no frame for this long, the lighting is turned off once. Screen sync stays on, so the next frame resumes. The minimum stays above the PC's 5 s keepalive, so a static screen never blinks off and on. |
 
 Changing an option reloads the integration, which briefly reconnects.
 
@@ -147,10 +147,13 @@ service, **`sb_katana.stream_frame`**, exists for automations and tests:
 
 ## Safety
 
-- **An allowlist.** The encoder refuses any `(opcode, sub-command)` outside a fixed list. It checks every
-  write's payload against the shapes the app sent: channel and level ranges, writes to the live sound-mode
-  slot only, the Speakers/Headphones sub-configurations only, the CrystalVoice DSP ids only, and integer
-  encoding for the two integer store keys.
+- **An allowlist.** The encoder refuses any `(opcode, sub-command)` outside a fixed list. It checks the payload
+  of every write that carries a parameter against the shapes the app sent: volume and mute (channel and level
+  ranges), input, output, auto-switch, scout, subwoofer, sound-mode slot, the sound-mode store (live slot only,
+  the Speakers/Headphones sub-configurations only, writable keys and ranges, integer encoding for the two
+  integer keys), the CrystalVoice DSP ids, lighting power. The remaining writes have no free parameters: the solid-colour
+  frames come from fixed builders, and the lighting and EQ presets are the app's own frames replayed
+  verbatim. Those are checked by golden tests rather than by shape.
 - **No dangerous builders.** There is no builder for firmware transfer (`5B`/`0x98`), firmware apply
   (`0x53`) or device-memory access (`0x54`). The soundbar's second GATT service is never touched. Guard
   tests fail the build if any of that appears, and each guard has a positive control.
@@ -158,8 +161,9 @@ service, **`sb_katana.stream_frame`**, exists for automations and tests:
   work over BLE. Today that is lighting power and solid colour. Everything else works only with
   **Allow unconfirmed controls** on, until it is confirmed and enabled in `families.py`.
 - **State comes only from the soundbar.** A value changes when the soundbar reports it or acknowledges a
-  write. A missing answer means unknown, and the value is re-read. Nothing is written on a timer; the 60 s
-  poll is reads only.
+  write. A refusal (status ≠ 0) keeps the old value. No answer means the outcome is unknown: the value is
+  cleared and re-read. The firmware (and so the write gate) is re-read on every reconnect. Nothing is written
+  on a timer. The 60 s poll is reads only, and it also re-reads anything still unknown.
 - **Flash.** The soundbar saves settings to flash only after it has been idle (measured), so wear scales
   with how often a value settles, not with how fast it is written.
 

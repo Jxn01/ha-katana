@@ -27,7 +27,9 @@ CONF_STREAM_TIMEOUT: Final = "stream_timeout_s"
 DEFAULT_STREAM_RATE: Final = 10
 DEFAULT_STREAM_TIMEOUT: Final = 10
 STREAM_RATE_RANGE: Final = (1, 20)
-STREAM_TIMEOUT_RANGE: Final = (3, 120)
+# The PC re-posts an unchanged colour every 5 s (the contract in the spec, section 9);
+# a hand-over shorter than that would blink the lights off and on at every keepalive.
+STREAM_TIMEOUT_RANGE: Final = (10, 120)
 
 SERVICE_STREAM_FRAME: Final = "stream_frame"
 ATTR_RGB: Final = "rgb"

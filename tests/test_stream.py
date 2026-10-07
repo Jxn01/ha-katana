@@ -176,3 +176,49 @@ async def test_on_off_from_outside_is_published_at_once(hass, entry, fake):
     fake.notify("5a3a022600")
     await hass.async_block_till_done()
     assert hass.states.get(light).state == "off"
+
+
+# --- review findings (2026-10-07) -----------------------------------------------------------
+
+
+async def test_failed_prepare_is_sent_again_with_the_next_frame(hass, entry, fake, stream, monkeypatch):
+    from custom_components.sb_katana import device as dev
+
+    monkeypatch.setattr(dev, "REPLY_TIMEOUT", 0.05)
+    fake.silent.add("5a3a022501")  # the prepare's first frame is lost once
+    stream.handle_frame((10, 10, 10))
+    await asyncio.sleep(0.2)
+    fake.silent.clear()
+    before = len(fake.writes)
+    stream.handle_frame((10, 10, 10))  # the same colour: a keepalive
+    await asyncio.sleep(0.2)
+    assert fake.writes_since(before)[:4] == [
+        "5a3a022501",
+        "5a3a03370001",
+        "5a3a03290003",
+        p.solo_colour((10, 10, 10)).frame.hex(),
+    ]
+
+
+async def test_reconnect_while_receiving_prepares_again(hass, entry, fake, stream):
+    stream.handle_frame((20, 20, 20))
+    await asyncio.sleep(0.05)
+    device = entry.runtime_data.device
+    device.connect_count += 1  # what a successful reconnect does
+    before = len(fake.writes)
+    stream.handle_frame((21, 21, 21))
+    await asyncio.sleep(0.15)
+    assert fake.writes_since(before)[0] == "5a3a022501"
+
+
+async def test_handover_option_cannot_undercut_the_keepalive(hass, entry):
+    from homeassistant.data_entry_flow import FlowResultType
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    import voluptuous as vol
+
+    with pytest.raises(vol.Invalid):
+        await hass.config_entries.options.async_configure(
+            result["flow_id"], {"allow_unconfirmed": False, "stream_rate_hz": 10, "stream_timeout_s": 4}
+        )
+    assert result["type"] is FlowResultType.FORM

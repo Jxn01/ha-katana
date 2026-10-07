@@ -130,7 +130,10 @@ class BleakTransport:
         client = self._client
         if client is None or not client.is_connected:
             raise KatanaCommandError("soundbar not connected")
-        limit = self.write_limit
+        try:
+            limit = self.write_limit
+        except BleakError as err:
+            raise KatanaCommandError(f"BLE link not ready: {err}") from err
         if len(frame) > limit:
             raise KatanaCommandError(f"frame of {len(frame)} bytes exceeds the link's {limit}-byte limit")
         try:

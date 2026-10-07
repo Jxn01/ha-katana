@@ -40,3 +40,19 @@ async def test_untested_firmware_raises_a_repair_issue(hass, mock_bluetooth):
     issue = ir.async_get(hass).async_get_issue(DOMAIN, f"untested_firmware_{config_entry.entry_id}")
     assert issue is not None and issue.translation_placeholders["found"] == "1.30.260813.1100"
     await hass.config_entries.async_unload(config_entry.entry_id)
+
+
+async def test_hold_connection_off_survives_a_restart(hass, mock_bluetooth):
+    from homeassistant.core import State
+    from pytest_homeassistant_custom_component.common import mock_restore_cache
+
+    mock_restore_cache(hass, [State("switch.sound_blaster_katana_v2x_hold_connection", "off")])
+    fake = FakeKatana()
+    config_entry = MockConfigEntry(domain=DOMAIN, unique_id=FAKE_ADDRESS, data={"address": FAKE_ADDRESS})
+    config_entry.add_to_hass(hass)
+    with patch("custom_components.sb_katana._make_transport", return_value=fake):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+    assert config_entry.runtime_data.device.hold_connection is False
+    assert not fake.connected
+    await hass.config_entries.async_unload(config_entry.entry_id)

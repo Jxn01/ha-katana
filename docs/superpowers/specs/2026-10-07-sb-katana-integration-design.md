@@ -229,7 +229,10 @@ Both paths call the same `StreamController.handle_frame`.
   first, and skips a colour equal to the last one sent.
 - The first frame after idle or a hand-over sends `prepare` (lighting power on, colour count 1, solo
   mode), then the colour. This is the same sequence ambience-rgb uses.
-- **Hand-over.** With no frame for `stream_timeout_s` (option, default 10), the integration sends lighting
+- **Prepare is re-sent** whenever a batch fails to reach the soundbar and after every (re)connect, and it is
+  carried into a batch that replaces it before it went out (review finding, 2026-10-07).
+- **Hand-over.** With no frame for `stream_timeout_s` (option, default 10, range 10–120 so it never undercuts the
+  PC's 5 s keepalive), the integration sends lighting
   power off once and marks the stream idle. Screen sync stays on, so the next frame resumes.
 - **Manual change.** Any light service call (`turn_on`, `turn_off`, effect, colour) switches Screen sync off
   first, then executes.

@@ -42,6 +42,10 @@ class KatanaUnconfirmedError(KatanaCommandError):
     """A write in a family the owner has not confirmed live yet."""
 
 
+class KatanaRejectedError(KatanaCommandError):
+    """The soundbar answered with a non-zero status: the outcome is known (not applied)."""
+
+
 class Transport(Protocol):
     on_frame: Callable[[bytes], None] | None
     on_disconnect: Callable[[], None] | None
@@ -163,6 +167,13 @@ class _Pending:
     future: asyncio.Future
 
 
+@dataclass
+class _StreamBatch:
+    cmds: list[p.Command]
+    prepare: bool
+    on_done: Callable[[bool], None] | None
+
+
 class KatanaDevice:
     """One soundbar over one transport."""
 
@@ -174,11 +185,13 @@ class KatanaDevice:
         self._listeners: list[Callable[[], None]] = []
         self._io_lock = asyncio.Lock()
         self._pending: _Pending | None = None
-        self._stream_slot: list[p.Command] | None = None
+        self._stream_slot: _StreamBatch | None = None
         self._stream_wake = asyncio.Event()
         self._stream_task: asyncio.Task | None = None
         self._reconnect_task: asyncio.Task | None = None
         self._stopping = False
+        self._verified = False  # identity (firmware) read on THIS connection
+        self.connect_count = 0  # bumps on every verified (re)connect
         self.stream_errors = 0
         transport.on_frame = self._on_frame
         transport.on_disconnect = self._on_disconnect
@@ -187,23 +200,46 @@ class KatanaDevice:
 
     @property
     def available(self) -> bool:
-        return self._transport.connected and self.state.firmware is not None
+        return self._transport.connected and self._verified
 
     @property
     def firmware_ok(self) -> bool:
-        return self.state.firmware == p.TESTED_FIRMWARE
+        """Only a firmware read on the current connection counts: the app could have updated it meanwhile."""
+        return self._verified and self.state.firmware == p.TESTED_FIRMWARE
 
-    async def start(self) -> None:
-        """Connect and read everything back. Raises if the soundbar cannot be reached."""
-        self._stopping = False
-        await self._transport.connect()
-        await self.refresh(full=True)
+    def _ensure_stream_task(self) -> None:
         if self._stream_task is None or self._stream_task.done():
             self._stream_task = asyncio.create_task(self._stream_loop(), name="sb_katana stream writer")
+
+    async def _connect_and_verify(self) -> None:
+        """Connect and read everything back; on a failed read-back drop the link so a retry starts clean."""
+        await self._transport.connect()
+        try:
+            await self.refresh(full=True)
+        except BaseException:
+            await self._transport.disconnect()
+            raise
+        self.connect_count += 1
+
+    async def start(self, *, keep_trying: bool = False) -> None:
+        """Connect and read everything back. Raises if the soundbar cannot be reached.
+
+        ``keep_trying`` (the Hold connection switch) also starts the reconnect loop
+        when this attempt fails; setup leaves retrying to Home Assistant instead.
+        """
+        self._stopping = False
+        self._ensure_stream_task()
+        try:
+            await self._connect_and_verify()
+        except BaseException:
+            if keep_trying and self.hold_connection and (self._reconnect_task is None or self._reconnect_task.done()):
+                self._reconnect_task = asyncio.create_task(self._reconnect_loop(), name="sb_katana reconnect")
+            raise
         self._notify()
 
     async def stop(self) -> None:
         self._stopping = True
+        self._verified = False
         for task in (self._stream_task, self._reconnect_task):
             if task is not None:
                 task.cancel()
@@ -228,6 +264,7 @@ class KatanaDevice:
 
     def _on_disconnect(self) -> None:
         _LOGGER.info("Katana disconnected")
+        self._verified = False
         if self._pending is not None and not self._pending.future.done():
             self._pending.future.set_exception(KatanaCommandError("soundbar disconnected"))
         self._notify()
@@ -244,8 +281,7 @@ class KatanaDevice:
             if self._stopping or self._transport.connected:
                 return
             try:
-                await self._transport.connect()
-                await self.refresh(full=True)
+                await self._connect_and_verify()
             except (KatanaCommandError, OSError, TimeoutError) as err:
                 _LOGGER.debug("Katana reconnect failed: %s", err)
                 continue
@@ -253,6 +289,7 @@ class KatanaDevice:
                 _LOGGER.exception("Katana reconnect failed unexpectedly")
                 continue
             _LOGGER.info("Katana reconnected")
+            self._ensure_stream_task()
             self._notify()
             return
 
@@ -267,7 +304,11 @@ class KatanaDevice:
         if pending is not None and not pending.future.done():
             ack = p.parse_ack(frame)
             if ack is not None:
-                if (pending.cmd.ack and p.matches_ack(pending.cmd, ack)) or ack.op == pending.cmd.reply_op:
+                # A read is answered by data; an ACK only resolves it when it is a refusal.
+                # (A late status-00 ACK of an earlier, timed-out write is not its answer.)
+                if (pending.cmd.ack and p.matches_ack(pending.cmd, ack)) or (
+                    ack.op == pending.cmd.reply_op and ack.status != 0
+                ):
                     pending.future.set_result(ack)
             elif p.matches_reply(pending.cmd, frame):
                 pending.future.set_result(frame)
@@ -290,7 +331,7 @@ class KatanaDevice:
         finally:
             self._pending = None
         if isinstance(result, p.Ack) and result.status != 0:
-            raise KatanaCommandError(f"soundbar rejected {cmd.frame.hex()} with status {result.status:#04x}")
+            raise KatanaRejectedError(f"soundbar rejected {cmd.frame.hex()} with status {result.status:#04x}")
         return result
 
     async def request(self, cmd: p.Command) -> p.Frame:
@@ -312,18 +353,34 @@ class KatanaDevice:
                 "controls' in the integration options to test it (see the morning checklist)."
             )
 
-    async def send(self, family: str, cmds: list[p.Command], *, reread: list[p.Command] | None = None) -> None:
+    async def send(
+        self,
+        family: str,
+        cmds: list[p.Command],
+        *,
+        reread: list[p.Command] | None = None,
+        forget: Callable[[], None] | None = None,
+    ) -> None:
         """Gate, then send ``cmds`` back to back, each waiting for its acknowledgement.
 
-        On any failure the affected fields are re-read (``reread``) so state never
-        claims a value the soundbar did not confirm.
+        A refusal (status != 0) means the write was not applied: the old value
+        stands and is re-read. No answer (a timeout, a dropped link) means the
+        outcome is unknown: the affected fields are cleared (``forget``) before the
+        re-read, so state never claims a value the soundbar did not confirm.
         """
         self.check_gate(family)
         try:
             async with self._io_lock:
                 for cmd in cmds:
                     await self._exchange(cmd)
+        except KatanaRejectedError:
+            if reread:
+                await self._reread(reread)
+            raise
         except KatanaCommandError:
+            if forget is not None:
+                forget()
+                self._notify()
             if reread:
                 await self._reread(reread)
             raise
@@ -335,9 +392,22 @@ class KatanaDevice:
             except KatanaCommandError as err:
                 _LOGGER.debug("Re-read failed: %s", err)
 
-    def submit_stream(self, cmds: list[p.Command]) -> None:
-        """Replace whatever stream write is waiting: the newest frame wins."""
-        self._stream_slot = cmds
+    def submit_stream(
+        self, cmds: list[p.Command], *, prepare: bool = False, on_done: Callable[[bool], None] | None = None
+    ) -> None:
+        """Replace whatever stream write is waiting: the newest frame wins.
+
+        ``prepare`` marks a batch that starts with the solo-prepare frames. If such a
+        batch is replaced before it went out, the prepare is carried into the new
+        one -- otherwise only colours would follow and the lights could stay off.
+        ``on_done(ok)`` reports whether the batch reached the soundbar.
+        """
+        old = self._stream_slot
+        if old is not None and old.prepare and not prepare:
+            # A prepare batch is the prepare frames followed by exactly one colour.
+            cmds = [*old.cmds[: len(old.cmds) - 1], *cmds]
+            prepare = True
+        self._stream_slot = _StreamBatch(cmds, prepare, on_done)
         self._stream_wake.set()
 
     def clear_stream(self) -> None:
@@ -349,15 +419,22 @@ class KatanaDevice:
             await self._stream_wake.wait()
             self._stream_wake.clear()
             while self._stream_slot is not None:
-                cmds, self._stream_slot = self._stream_slot, None
+                batch, self._stream_slot = self._stream_slot, None
+                ok = False
                 try:
                     self.check_gate("light_solo")
                     async with self._io_lock:
-                        for cmd in cmds:
+                        for cmd in batch.cmds:
                             await self._exchange(cmd)
+                    ok = True
                 except KatanaCommandError as err:
                     self.stream_errors += 1
                     _LOGGER.debug("Stream write failed: %s", err)
+                except Exception:  # the writer must outlive any one bad batch
+                    self.stream_errors += 1
+                    _LOGGER.exception("Stream write failed unexpectedly")
+                if batch.on_done is not None:
+                    batch.on_done(ok)
 
     # --- reads ------------------------------------------------------------------------
 
@@ -432,6 +509,9 @@ class KatanaDevice:
         retried once at the end. A failed full read of the identity raises,
         because a soundbar that cannot even report its firmware is not set up.
         """
+        if full:
+            self._verified = False
+            self.state.firmware = None
         failed: list[p.Command] = []
         for cmd in self._read_plan(full):
             try:
@@ -446,6 +526,8 @@ class KatanaDevice:
                 await self.request(cmd)
             except KatanaCommandError as err:
                 _LOGGER.debug("Read %s failed again: %s", cmd.frame.hex(), err)
+        if full:
+            self._verified = self.state.firmware is not None
         self._notify()
 
     # --- intents ----------------------------------------------------------------------
@@ -455,46 +537,80 @@ class KatanaDevice:
 
     async def set_level(self, family: str, channel: int, level: int) -> None:
         level = max(0, min(p.LEVEL_MAX, int(level)))
-        await self.send(family, [p.set_level(channel, level)], reread=[p.level_query(channel)])
+        await self.send(
+            family,
+            [p.set_level(channel, level)],
+            reread=[p.level_query(channel)],
+            forget=lambda: self.state.levels.pop(channel, None),
+        )
         self.state.levels[channel] = level
         self.state.mutes[channel] = False  # the soundbar unmutes on any level change
         self._notify()
 
     async def set_mute(self, muted: bool, channel: int = p.CH_SPEAKERS) -> None:
-        await self.send("mute", [p.set_mute(channel, muted)], reread=[p.mute_query(channel)])
+        await self.send(
+            "mute",
+            [p.set_mute(channel, muted)],
+            reread=[p.mute_query(channel)],
+            forget=lambda: self.state.mutes.pop(channel, None),
+        )
         self.state.mutes[channel] = muted
         self._notify()
 
     async def set_input(self, input_id: int) -> None:
-        await self.send("input", [p.set_input(input_id)], reread=[p.input_query()])
+        await self.send(
+            "input",
+            [p.set_input(input_id)],
+            reread=[p.input_query()],
+            forget=lambda: setattr(self.state, "input", None),
+        )
         self.state.input = input_id
         self._notify()
 
     async def set_output(self, headphones: bool) -> None:
-        await self.send("output", [p.set_output(headphones)], reread=[p.output_query()])
+        await self.send(
+            "output",
+            [p.set_output(headphones)],
+            reread=[p.output_query()],
+            forget=lambda: setattr(self.state, "output", None),
+        )
         self.state.output = "headphones" if headphones else "speakers"
         # The live store and EQ follow the output; make sure that side is loaded.
         await self._reread([*self._store_reads(self.state.store_sub), p.eq_name_query(self.state.store_sub)])
         self._notify()
 
     async def set_auto_switch(self, on: bool) -> None:
-        await self.send("auto_switch", [p.set_auto_switch(on)], reread=[p.auto_switch_query()])
+        await self.send(
+            "auto_switch",
+            [p.set_auto_switch(on)],
+            reread=[p.auto_switch_query()],
+            forget=lambda: setattr(self.state, "auto_switch", None),
+        )
         self.state.auto_switch = on
         self._notify()
 
     async def set_scout(self, on: bool) -> None:
-        await self.send("scout", [p.set_scout(on)], reread=[p.scout_query()])
+        await self.send(
+            "scout", [p.set_scout(on)], reread=[p.scout_query()], forget=lambda: setattr(self.state, "scout", None)
+        )
         self.state.scout = on
         self._notify()
 
     async def set_sub(self, level: int) -> None:
         level = max(p.SUB_MIN, min(p.SUB_MAX, int(level)))
-        await self.send("subwoofer", [p.set_sub(level)], reread=[p.sub_query()])
+        await self.send(
+            "subwoofer", [p.set_sub(level)], reread=[p.sub_query()], forget=lambda: setattr(self.state, "sub", None)
+        )
         self.state.sub = level
         self._notify()
 
     async def select_mode(self, slot: int) -> None:
-        await self.send("sound_mode", [p.select_mode(slot)], reread=[p.mode_active_query()])
+        await self.send(
+            "sound_mode",
+            [p.select_mode(slot)],
+            reread=[p.mode_active_query()],
+            forget=lambda: setattr(self.state, "mode_active", None),
+        )
         self.state.mode_active = slot
         # Selecting a mode replaces the live acoustic, decoder and EQ settings.
         await self._reread(
@@ -508,14 +624,28 @@ class KatanaDevice:
         self._notify()
 
     async def set_store(self, family: str, key: tuple[int, int], value: float) -> None:
+        if self.state.output is None:
+            # Speakers and Headphones have separate settings; writing the wrong side
+            # while showing it as applied would be worse than refusing.
+            raise KatanaCommandError("the current output is unknown, so it is unclear which side to change")
         sub = self.state.store_sub
-        await self.send(family, [p.store_write(sub, [(key, value)])], reread=self._store_reads(sub))
+        await self.send(
+            family,
+            [p.store_write(sub, [(key, value)])],
+            reread=self._store_reads(sub),
+            forget=lambda: self.state.store.get(sub, {}).pop(key, None),
+        )
         self.state.store.setdefault(sub, {})[key] = float(value)
         self._notify()
 
     async def set_dsp(self, pid: int, on: bool) -> None:
         value = 1.0 if on else 0.0
-        await self.send("crystalvoice", [p.dsp_write(pid, value)], reread=[p.dsp_query(p.DSP_READ_IDS)])
+        await self.send(
+            "crystalvoice",
+            [p.dsp_write(pid, value)],
+            reread=[p.dsp_query(p.DSP_READ_IDS)],
+            forget=lambda: self.state.dsp.pop(pid, None),
+        )
         self.state.dsp[pid] = value
         self._notify()
 
@@ -526,6 +656,7 @@ class KatanaDevice:
             "eq_preset",
             p.captured_sequence(captured.EQ_PRESETS[name]),
             reread=[p.eq_name_query(self.state.store_sub)],
+            forget=self.state.eq_names.clear,
         )
         await self._reread(
             [
@@ -537,12 +668,22 @@ class KatanaDevice:
         self._notify()
 
     async def light_on_off(self, on: bool) -> None:
-        await self.send("light_power", [p.light_power(on)], reread=[p.light_power_query()])
+        await self.send(
+            "light_power",
+            [p.light_power(on)],
+            reread=[p.light_power_query()],
+            forget=lambda: setattr(self.state, "light_on", None),
+        )
         self.state.light_on = on
         self._notify()
 
     async def light_solo(self, rgb: tuple[int, int, int]) -> None:
-        await self.send("light_solo", [*p.solo_prepare(), p.solo_colour(rgb)], reread=self._light_reads())
+        await self.send(
+            "light_solo",
+            [*p.solo_prepare(), p.solo_colour(rgb)],
+            reread=self._light_reads(),
+            forget=self._forget_light,
+        )
         self.state.light_on = True
         self.state.light_mode = p.LIGHT_MODE_MOOD
         self.state.light_solid = True
@@ -553,10 +694,17 @@ class KatanaDevice:
         if name not in captured.LIGHTING_PRESETS:
             raise KatanaCommandError(f"unknown lighting preset {name!r}")
         await self.send(
-            "light_preset", p.captured_sequence(captured.LIGHTING_PRESETS[name]), reread=self._light_reads()
+            "light_preset",
+            p.captured_sequence(captured.LIGHTING_PRESETS[name]),
+            reread=self._light_reads(),
+            forget=self._forget_light,
         )
         await self._reread(self._light_reads())
         self._notify()
+
+    def _forget_light(self) -> None:
+        s = self.state
+        s.light_on = s.light_mode = s.light_colours = s.light_name = s.light_solid = None
 
     async def handover_off(self) -> None:
         """The stream's hand-over: lights off, through the manual path, gated as lighting power."""

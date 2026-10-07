@@ -152,6 +152,13 @@ class KatanaLight(KatanaEntity, LightEntity):
             self._commanding = False
 
     async def _turn_on(self, **kwargs: Any) -> None:
+        # Refuse before yielding Screen sync: a refused command must change nothing.
+        if ATTR_EFFECT in kwargs:
+            self._device.check_gate("light_preset")
+        elif ATTR_RGB_COLOR in kwargs or ATTR_BRIGHTNESS in kwargs:
+            self._device.check_gate("light_solo")
+        else:
+            self._device.check_gate("light_power")
         self._stream.manual_override()
         if ATTR_EFFECT in kwargs:
             await self._device.light_preset(_LABEL_TO_PRESET.get(kwargs[ATTR_EFFECT], kwargs[ATTR_EFFECT]))
@@ -167,6 +174,7 @@ class KatanaLight(KatanaEntity, LightEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         self._commanding = True
         try:
+            self._device.check_gate("light_power")
             self._stream.manual_override()
             await self._device.light_on_off(False)
         finally:

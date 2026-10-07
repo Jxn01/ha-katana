@@ -9,7 +9,7 @@ from homeassistant.components.media_player import (
     MediaPlayerState,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import KatanaConfigEntry
@@ -82,11 +82,17 @@ class KatanaMediaPlayer(KatanaEntity, MediaPlayerEntity):
     async def async_set_volume_level(self, volume: float) -> None:
         await self._device.set_volume(round(volume * p.LEVEL_MAX))
 
+    def _current_level(self) -> int:
+        level = self._device.state.levels.get(p.CH_SPEAKERS)
+        if level is None:
+            raise HomeAssistantError("the current volume is unknown; re-read state first")
+        return level
+
     async def async_volume_up(self) -> None:
-        await self._device.set_volume((self._device.state.levels.get(p.CH_SPEAKERS) or 0) + 1)
+        await self._device.set_volume(self._current_level() + 1)
 
     async def async_volume_down(self) -> None:
-        await self._device.set_volume((self._device.state.levels.get(p.CH_SPEAKERS) or 0) - 1)
+        await self._device.set_volume(self._current_level() - 1)
 
     async def async_mute_volume(self, mute: bool) -> None:
         await self._device.set_mute(mute)
