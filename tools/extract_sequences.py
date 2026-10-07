@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from frames import load  # noqa: E402
+from frames import load
 
 
 def utf16(b: bytes) -> str:
