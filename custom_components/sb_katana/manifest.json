@@ -3,13 +3,22 @@
   "name": "Sound Blaster Katana V2X",
   "bluetooth": [
     {
+      "service_uuid": "9e9daaea-3a10-4fe8-b69f-7397aff77886",
+      "connectable": true
+    },
+    {
       "local_name": "Control for MF8400*",
       "connectable": true
     }
   ],
-  "codeowners": ["@Jxn01"],
+  "codeowners": [
+    "@Jxn01"
+  ],
   "config_flow": true,
-  "dependencies": ["bluetooth_adapters", "http"],
+  "dependencies": [
+    "bluetooth_adapters",
+    "http"
+  ],
   "documentation": "https://github.com/Jxn01/ha-katana",
   "integration_type": "device",
   "iot_class": "local_push",

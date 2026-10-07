@@ -19,14 +19,16 @@ from .const import (
     DEFAULT_STREAM_TIMEOUT,
     DOMAIN,
     LOCAL_NAME_PREFIX,
+    SERVICE_UUID,
     STREAM_RATE_RANGE,
     STREAM_TIMEOUT_RANGE,
 )
 
 
 def _is_katana(info: BluetoothServiceInfoBleak) -> bool:
-    # The advertised name carries trailing NULs, so match the prefix only.
-    return (info.name or "").startswith(LOCAL_NAME_PREFIX)
+    # The command service UUID is in the advertisement itself; the name (with trailing
+    # NULs, so matched by prefix) only arrives with active scanning.
+    return SERVICE_UUID in info.service_uuids or (info.name or "").startswith(LOCAL_NAME_PREFIX)
 
 
 class KatanaConfigFlow(ConfigFlow, domain=DOMAIN):

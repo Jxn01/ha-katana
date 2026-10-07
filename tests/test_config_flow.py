@@ -19,22 +19,25 @@ from .fakes import FAKE_ADDRESS
 
 
 def service_info(
-    name: str = "Control for MF8400\x00\x00\x00", address: str = FAKE_ADDRESS
+    name: str = "Control for MF8400\x00\x00\x00",
+    address: str = FAKE_ADDRESS,
+    service_uuids: list[str] | None = None,
 ) -> BluetoothServiceInfoBleak:
+    service_uuids = service_uuids or []
     return BluetoothServiceInfoBleak(
         name=name,
         address=address,
         rssi=-58,
         manufacturer_data={0x4102: b""},
         service_data={},
-        service_uuids=[],
+        service_uuids=service_uuids,
         source="local",
         device=BLEDevice(address, name, None),
         advertisement=AdvertisementData(
             local_name=name,
             manufacturer_data={0x4102: b""},
             service_data={},
-            service_uuids=[],
+            service_uuids=service_uuids,
             tx_power=None,
             rssi=-58,
             platform_data=(),
@@ -55,6 +58,15 @@ async def test_bluetooth_discovery_confirm(hass, mock_bluetooth):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"] == {"address": FAKE_ADDRESS}
     assert result["result"].unique_id == FAKE_ADDRESS
+
+
+async def test_passive_scan_discovery_by_service_uuid(hass, mock_bluetooth):
+    """HA's adapter scans passively: no name, just the address and the command service UUID."""
+    info = service_info(name=FAKE_ADDRESS, service_uuids=["9e9daaea-3a10-4fe8-b69f-7397aff77886"])
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_BLUETOOTH}, data=info
+    )
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "bluetooth_confirm"
 
 
 async def test_bluetooth_discovery_rejects_other_devices(hass, mock_bluetooth):

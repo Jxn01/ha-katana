@@ -117,7 +117,12 @@ def test_forbidden_scanner_positive_control(frame):
 
 
 UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
-COMMAND_UUIDS = {"9e9daaec-3a10-4fe8-b69f-7397aff77886", "9e9daaeb-3a10-4fe8-b69f-7397aff77886"}
+# The command service (discovery only), its write and its notify characteristic.
+COMMAND_UUIDS = {
+    "9e9daaea-3a10-4fe8-b69f-7397aff77886",
+    "9e9daaec-3a10-4fe8-b69f-7397aff77886",
+    "9e9daaeb-3a10-4fe8-b69f-7397aff77886",
+}
 
 
 def test_only_the_command_channel_uuids_appear_in_the_integration():

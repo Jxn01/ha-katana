@@ -10,8 +10,11 @@ MODEL: Final = "Sound Blaster Katana V2X"
 MODEL_ID: Final = "MF8400"
 DEFAULT_NAME: Final = "Sound Blaster Katana V2X"
 
-# The BLE control device advertises as "Control for MF8400" (with trailing NULs).
+# The BLE control device advertises the command service UUID; its name, "Control for
+# MF8400" (with trailing NULs), is only in the scan response, which an adapter in passive
+# scanning mode (HA's here) never receives.
 LOCAL_NAME_PREFIX: Final = "Control for MF8400"
+SERVICE_UUID: Final = "9e9daaea-3a10-4fe8-b69f-7397aff77886"
 
 # The command channel: frames go to WRITE_UUID (Write Command), replies arrive on
 # NOTIFY_UUID. The soundbar's second GATT service is never touched.
