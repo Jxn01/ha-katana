@@ -69,8 +69,8 @@ The device pushes state frames on changes. In this capture they came after app w
 - `3a:26 / 3a:2a / 3a:2c / 3a:32 / 3a:35` and `a7:13 (03,00)` after lighting writes;
 - `6f` (stream-format) frames while an input syncs.
 
-Whether the volume knob or the remote also produce them was **not captured** — it is on the
-morning checklist. The parser must tolerate unknown opcodes.
+**The volume knob does push them**: HA followed the knob instantly (owner, 2026-10-07), so `23`/`24`
+notifications arrive unsolicited. The parser must tolerate unknown opcodes.
 
 ## Opcodes and sub-commands
 

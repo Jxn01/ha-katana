@@ -161,9 +161,8 @@ service, **`sb_katana.stream_frame`**, exists for automations and tests:
   (`0x53`) or device-memory access (`0x54`). The soundbar's second GATT service is never touched. Guard
   tests fail the build if any of that appears, and each guard has a positive control.
 - **The confirmation gate.** A command family is enabled by default only once the owner has seen or heard it
-  work over BLE. As of 2026-10-07 that is every family except **Input**, **Sound mode** (not yet tried) and
-  **Headphones level** (reported not working). Those three work only with **Allow unconfirmed controls** on,
-  until they are confirmed and enabled in `families.py`.
+  work over BLE. As of 2026-10-07 that is every family except **Headphones level** (reported not working),
+  which works only with **Allow unconfirmed controls** on.
 - **State comes only from the soundbar.** A value changes when the soundbar reports it or acknowledges a
   write. A refusal (status ≠ 0) keeps the old value. No answer means the outcome is unknown: the value is
   cleared and re-read. The firmware (and so the write gate) is re-read on every reconnect. Nothing is written

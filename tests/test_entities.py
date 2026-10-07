@@ -64,8 +64,18 @@ async def test_states_after_read_back(hass, entry):
 
 async def test_unconfirmed_write_is_refused(hass, entry, fake):
     before = len(fake.writes)
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("number", DOMAIN, f"{FAKE_ADDRESS}_headphones_level")
+    registry.async_update_entity(entity_id, disabled_by=None)
+    from unittest.mock import patch
+
+    with patch("custom_components.sb_katana._make_transport", return_value=fake):
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "24.0"
+    before = len(fake.writes)
     with pytest.raises(HomeAssistantError, match="not been confirmed"):
-        await call(hass, "select", "select_option", eid(hass, "select", "input"), option="Optical")
+        await call(hass, "number", "set_value", entity_id, value=20)
     assert fake.writes_since(before) == []
 
 
@@ -92,11 +102,10 @@ async def test_light_turn_off(hass, entry, fake):
     assert state(hass, "light", "lighting").state == "off"
 
 
-async def test_sound_mode_needs_confirmation(hass, entry, fake):
+async def test_sound_mode_is_confirmed(hass, entry, fake):
     before = len(fake.writes)
-    with pytest.raises(HomeAssistantError, match="not been confirmed"):
-        await call(hass, "select", "select_option", eid(hass, "select", "sound_mode"), option="Gaming.")
-    assert fake.writes_since(before) == []
+    await call(hass, "select", "select_option", eid(hass, "select", "sound_mode"), option="Gaming.")
+    assert fake.writes_since(before)[0] == "5aa7020002"
 
 
 async def test_input_and_sound_mode_are_selects_too(hass, entry):

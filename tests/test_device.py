@@ -47,7 +47,7 @@ async def test_unconfirmed_family_is_refused_by_default():
     fake, device = await started()
     before = len(fake.writes)
     with pytest.raises(dev.KatanaUnconfirmedError):
-        await device.set_input(0x07)
+        await device.set_level("headphones_level", p.CH_HEADPHONES, 10)
     assert fake.writes_since(before) == []
     await device.stop()
 
@@ -56,15 +56,15 @@ async def test_confirmed_families_match_the_owners_checklist():
     from custom_components.sb_katana.families import FAMILIES
 
     unconfirmed = {key for key, family in FAMILIES.items() if not family.confirmed}
-    assert unconfirmed == {"input", "sound_mode", "headphones_level"}
+    assert unconfirmed == {"headphones_level"}
 
 
 async def test_unconfirmed_family_allowed_when_opted_in():
     fake, device = await started(allow_unconfirmed=True)
     before = len(fake.writes)
-    await device.set_input(0x07)
-    assert fake.writes_since(before) == ["5a9c03000700"]
-    assert device.state.input == 0x07
+    await device.set_level("headphones_level", p.CH_HEADPHONES, 10)
+    assert fake.writes_since(before) == ["5a230500010a0000"]
+    assert device.state.levels[p.CH_HEADPHONES] == 10
     await device.stop()
 
 

@@ -45,10 +45,9 @@ _ALL = (
     Family("smart_volume_detail", "C", True, "Smart Volume level and mode"),
     Family("what_u_hear", "C", True, "Mixer (What U Hear)"),
     Family("subwoofer", "C", True, "Subwoofer level"),
-    # Not yet tried: only reachable inside the media player until 2026-10-07, so the
-    # owner could not find them during the checklist.
-    Family("input", "C", False, "Input source"),
-    Family("sound_mode", "C", False, "Sound mode"),
+    # Confirmed later the same day, once they were also exposed as selects.
+    Family("input", "C", True, "Input source"),
+    Family("sound_mode", "C", True, "Sound mode"),
     # Reported not working (2026-10-07). Headphones are not used with this soundbar,
     # so it stays unconfirmed and its entity is disabled by default.
     Family("headphones_level", "P", False, "Headphones level"),
