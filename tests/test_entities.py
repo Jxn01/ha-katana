@@ -115,6 +115,17 @@ async def test_light_brightness_is_the_soundbars_own(hass, entry, fake):
     assert light.attributes["rgb_color"] == (255, 0, 0) and light.attributes["brightness"] == 128
 
 
+async def test_hold_connection_on_while_the_soundbar_sleeps_is_not_an_error(hass, entry, fake):
+    # In standby its BLE is off: switching Hold connection on must not raise (it used to: an error toast,
+    # and HTTP 500 over REST) -- it is on, and the reconnect loop keeps trying in the background.
+    await call(hass, "switch", "turn_off", eid(hass, "switch", "hold_connection"))
+    fake.fail_connect = True
+    await call(hass, "switch", "turn_on", eid(hass, "switch", "hold_connection"))
+    assert state(hass, "switch", "hold_connection").state == "on"
+    assert not entry.runtime_data.device.available
+    await entry.runtime_data.device.stop()
+
+
 async def test_brightness_alone_keeps_screen_sync(hass, entry, fake):
     # Dimming a lit bar is not a manual lighting choice: Screen sync keeps running.
     entry.runtime_data.device.state.light_on = True

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -9,15 +10,15 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import KatanaConfigEntry
 from . import protocol as p
-from .const import DOMAIN
 from .device import KatanaCommandError, KatanaDevice
 from .entity import KatanaEntity
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -185,12 +186,12 @@ class HoldConnectionSwitch(KatanaEntity, SwitchEntity, RestoreEntity):
         try:
             await self._device.start(keep_trying=True)
         except (KatanaCommandError, TimeoutError, OSError) as err:
-            raise HomeAssistantError(
-                f"could not reconnect to the soundbar yet (still trying): {err}",
-                translation_domain=DOMAIN,
-                translation_key="reconnect_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
+            # Not an error: the soundbar is asleep (BLE off) or out of range, and the reconnect loop keeps trying
+            # in the background. The entities read unavailable until it answers -- raising here only produced an
+            # error toast (and an HTTP 500 over REST) every time this was switched on at night.
+            _LOGGER.info(
+                "Hold connection on; the soundbar is not reachable yet (%s), reconnecting in the background", err
+            )
         finally:
             self.async_write_ha_state()
 

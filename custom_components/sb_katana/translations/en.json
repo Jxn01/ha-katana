@@ -288,9 +288,6 @@
     },
     "several_entries": {
       "message": "More than one soundbar is set up: say which one with config_entry_id."
-    },
-    "reconnect_failed": {
-      "message": "Could not reconnect to the soundbar yet (it keeps trying): {error}"
     }
   },
   "issues": {
