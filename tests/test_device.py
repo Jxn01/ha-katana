@@ -182,11 +182,52 @@ async def test_unknown_frames_are_ignored():
 
 async def test_disconnect_marks_unavailable_and_reconnects(monkeypatch):
     monkeypatch.setattr(dev, "RECONNECT_BACKOFF", (0.01,))
+    monkeypatch.setattr(dev, "RECONNECT_IDLE", 0.01)
     fake, device = await started()
     fake.drop()
     assert not device.available
     await asyncio.sleep(0.1)
     assert device.available
+    await device.stop()
+
+
+async def test_a_reconnect_request_wakes_a_sleeping_retry_loop(monkeypatch):
+    # A sleeping soundbar: the loop waits long between blind retries; a request (colours arriving, an
+    # advertisement heard) must reconnect now, not at the next scheduled retry.
+    monkeypatch.setattr(dev, "RECONNECT_BACKOFF", (60,))
+    monkeypatch.setattr(dev, "RECONNECT_IDLE", 60)
+    fake, device = await started()
+    fake.fail_connect = True
+    fake.drop()
+    await asyncio.sleep(0.05)
+    assert not device.available
+    fake.fail_connect = False
+    device.request_reconnect("test")
+    for _ in range(50):
+        await asyncio.sleep(0.02)
+        if device.available:
+            break
+    assert device.available
+    await device.stop()
+
+
+async def test_reconnect_requests_are_rate_limited_and_ignored_when_pointless(monkeypatch):
+    monkeypatch.setattr(dev, "RECONNECT_BACKOFF", (60,))
+    monkeypatch.setattr(dev, "RECONNECT_IDLE", 60)
+    fake, device = await started()
+    device.request_reconnect("while connected")  # pointless: nothing happens
+    assert device._last_reconnect_request == float("-inf")
+    fake.fail_connect = True
+    fake.drop()
+    await asyncio.sleep(0.05)
+    device.request_reconnect("first")
+    first = device._last_reconnect_request
+    device.request_reconnect("second, within the minute")
+    assert device._last_reconnect_request == first  # rate-limited
+    device.hold_connection = False
+    device._last_reconnect_request = float("-inf")
+    device.request_reconnect("hold connection off")
+    assert device._last_reconnect_request == float("-inf")
     await device.stop()
 
 
@@ -257,6 +298,7 @@ async def test_poll_heals_reads_that_failed_at_connect(monkeypatch):
 async def test_failed_read_back_after_reconnect_drops_the_link_and_retries(monkeypatch):
     monkeypatch.setattr(dev, "REPLY_TIMEOUT", 0.05)
     monkeypatch.setattr(dev, "RECONNECT_BACKOFF", (0.01,))
+    monkeypatch.setattr(dev, "RECONNECT_IDLE", 0.01)
     fake, device = await started()
     firmware = p.firmware_query().frame.hex()
     fake.silent.add(firmware)  # the identity read is lost on the first reconnect

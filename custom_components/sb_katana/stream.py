@@ -63,6 +63,9 @@ class StreamController:
             self.frames_dropped += 1
             return False
         self.frames_received += 1
+        if not self._device.available:
+            # The PC is posting colours, so the soundbar is probably wanted -- and may be awake again.
+            self._device.request_reconnect("screen-sync colours arriving")
         if self._handover_unsub is not None:
             self._handover_unsub()
         self._handover_unsub = async_call_later(self._hass, self.timeout_s, self._handover)

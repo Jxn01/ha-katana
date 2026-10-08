@@ -63,7 +63,7 @@ offered.
 | Entity | What it does | Gate |
 |---|---|---|
 | **Screen sync** | On by default. While on, colours posted by the PC are shown. A manual lighting choice turns it off — a colour, an effect, or switching the bar on from off; switch it back on to resume. Changing only the **brightness** of a lit bar does not (Global Brightness is the soundbar's own setting and screen-sync colours keep flowing under it). Switching it off does not turn the lighting off. Restored across restarts. | — |
-| **Hold connection** (config) | On: keep the BLE link up and reconnect after drops (backoff 5 s → 5 min). Off: release the link so Creative's app can connect; entities become unavailable. Restored across restarts: setup connects once to read the firmware, then lets go again. | — |
+| **Hold connection** (config) | On: keep the BLE link up and reconnect after drops — backoff 5 s → 5 min, then a blind retry every 15 min, and **at once** when screen-sync colours arrive or the soundbar is heard advertising (at most once a minute). In standby the soundbar turns its Bluetooth off, so it is *unavailable* at night by design; frequent blind retries (each an active scan) measurably knocked other BLE devices on the same adapter off their links. Off: release the link so Creative's app can connect; entities become unavailable. Restored across restarts: setup connects once to read the firmware, then lets go again. | — |
 | **Scout Mode** | Scout Mode on/off | `scout` |
 | **Auto switch to TV/HDMI** (config) | Switch to TV/HDMI automatically when it requests | `auto_switch` |
 | **Equalizer** | EQ on/off for the current output | `eq_enable` |

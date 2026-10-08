@@ -26,7 +26,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from . import captured
 from . import protocol as p
-from .const import DOMAIN, RECONNECT_BACKOFF, REPLY_TIMEOUT
+from .const import DOMAIN, RECONNECT_BACKOFF, RECONNECT_IDLE, RECONNECT_REQUEST_MIN_INTERVAL, REPLY_TIMEOUT
 from .families import FAMILIES, is_allowed
 
 _LOGGER = logging.getLogger(__name__)
@@ -260,6 +260,8 @@ class KatanaDevice:
         self._stream_wake = asyncio.Event()
         self._stream_task: asyncio.Task | None = None
         self._reconnect_task: asyncio.Task | None = None
+        self._reconnect_wake = asyncio.Event()
+        self._last_reconnect_request = float("-inf")
         self._stopping = False
         self._verified = False  # identity (firmware) read on THIS connection
         self.connect_count = 0  # bumps on every verified (re)connect
@@ -349,9 +351,29 @@ class KatanaDevice:
         ):
             self._reconnect_task = asyncio.create_task(self._reconnect_loop(), name="sb_katana reconnect")
 
+    def request_reconnect(self, reason: str) -> None:
+        """Try to reconnect now rather than at the next scheduled retry -- at most once a minute.
+
+        Called when something says the soundbar may be awake again: screen-sync colours arriving, or its
+        advertisement heard. Does nothing while connected, stopping, or with Hold connection off.
+        """
+        if self.available or self._stopping or not self.hold_connection:
+            return
+        now = asyncio.get_running_loop().time()
+        if now - self._last_reconnect_request < RECONNECT_REQUEST_MIN_INTERVAL:
+            return
+        self._last_reconnect_request = now
+        _LOGGER.debug("Reconnect requested: %s", reason)
+        if self._reconnect_task is None or self._reconnect_task.done():
+            self._reconnect_task = asyncio.create_task(self._reconnect_loop(), name="sb_katana reconnect")
+        self._reconnect_wake.set()
+
     async def _reconnect_loop(self) -> None:
-        for delay in (*RECONNECT_BACKOFF, *[RECONNECT_BACKOFF[-1]] * 10_000):
-            await asyncio.sleep(delay)
+        for delay in (*RECONNECT_BACKOFF, *[RECONNECT_IDLE] * 10_000):
+            if not self._reconnect_wake.is_set():
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self._reconnect_wake.wait(), timeout=delay)
+            self._reconnect_wake.clear()
             if self._stopping or self._transport.connected:
                 return
             try:

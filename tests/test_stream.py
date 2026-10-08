@@ -97,6 +97,17 @@ async def test_switching_screen_sync_off_does_not_power_off(hass, entry, fake, s
     assert "5a3a022500" not in fake.writes_since(before)
 
 
+async def test_colours_arriving_while_disconnected_ask_for_a_reconnect(hass, entry, fake, stream, monkeypatch):
+    asked: list[str] = []
+    device = entry.runtime_data.device
+    monkeypatch.setattr(device, "request_reconnect", asked.append)
+    stream.handle_frame((1, 2, 3))
+    assert asked == []  # connected: nothing to ask for
+    monkeypatch.setattr(type(device), "available", property(lambda _self: False))
+    stream.handle_frame((4, 5, 6))
+    assert asked == ["screen-sync colours arriving"]
+
+
 async def test_stream_frame_validation(hass, entry, hass_client):
     client = await hass_client()
     for body in ({"rgb": [300, 0, 0]}, {"rgb": [1, 2]}, {}, {"rgb": "red"}):

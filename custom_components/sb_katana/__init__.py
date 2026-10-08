@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from bleak.exc import BleakError
+from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS, EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import Event, HomeAssistant
@@ -121,6 +122,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: KatanaConfigEntry) -> bo
         timeout_s=entry.options.get(CONF_STREAM_TIMEOUT, DEFAULT_STREAM_TIMEOUT),
     )
     entry.runtime_data = KatanaRuntime(device, stream, address)
+
+    # Heard advertising = awake again (in standby its BLE is off): reconnect now, not at the next blind retry.
+    entry.async_on_unload(
+        bluetooth.async_register_callback(
+            hass,
+            lambda _info, _change: device.request_reconnect("advertisement heard"),
+            bluetooth.BluetoothCallbackMatcher(address=address, connectable=False),
+            bluetooth.BluetoothScanningMode.PASSIVE,
+        )
+    )
 
     async def _poll(_now) -> None:
         if device.available:

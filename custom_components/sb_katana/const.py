@@ -38,3 +38,9 @@ ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
 REPLY_TIMEOUT: Final = 2.0
 POLL_INTERVAL: Final = 60
 RECONNECT_BACKOFF: Final = (5, 10, 30, 60, 120, 300)
+# After the backoff: a blind retry every 15 min. A sleeping soundbar turns its BLE off, and each blind retry is an
+# active sweep plus connection attempts on an adapter other BLE devices share -- every 5 min it measurably knocked the
+# PetKit fountain off its link (4 drops in 30 min vs 1 in 40 with retries paused, 2026-10-08). Retries come at once
+# instead when screen-sync colours arrive or the soundbar is heard advertising (KatanaDevice.request_reconnect).
+RECONNECT_IDLE: Final = 900
+RECONNECT_REQUEST_MIN_INTERVAL: Final = 60
