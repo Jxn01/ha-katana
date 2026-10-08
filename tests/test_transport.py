@@ -58,6 +58,16 @@ async def test_not_in_range_raises(hass, bt):
         await t.BleakTransport(hass, ADDRESS).connect()
 
 
+async def test_a_sleeping_soundbar_is_an_expected_error_not_a_traceback(hass, bt):
+    # A soundbar in standby turns its BLE off: bleak_retry_connector then raises its out-of-slots BleakError.
+    from bleak.exc import BleakError
+
+    _, _, _, connect = bt
+    connect.side_effect = BleakError("No backend with an available connection slot that can reach address")
+    with pytest.raises(KatanaCommandError, match="not reachable"):
+        await t.BleakTransport(hass, ADDRESS).connect()
+
+
 async def test_write_uses_write_command_to_the_write_uuid(hass, bt):
     _, _, _, connect = bt
     transport = t.BleakTransport(hass, ADDRESS)

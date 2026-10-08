@@ -115,6 +115,21 @@ async def test_light_brightness_is_the_soundbars_own(hass, entry, fake):
     assert light.attributes["rgb_color"] == (255, 0, 0) and light.attributes["brightness"] == 128
 
 
+async def test_brightness_alone_keeps_screen_sync(hass, entry, fake):
+    # Dimming a lit bar is not a manual lighting choice: Screen sync keeps running.
+    entry.runtime_data.device.state.light_on = True
+    before = len(fake.writes)
+    await call(hass, "light", "turn_on", eid(hass, "light", "lighting"), brightness=128)
+    assert "5a3a022780" in fake.writes_since(before)  # Global Brightness 128
+    assert state(hass, "switch", "screen_sync").state == "on"
+
+
+async def test_switching_the_bar_on_still_yields_screen_sync(hass, entry, fake):
+    entry.runtime_data.device.state.light_on = False
+    await call(hass, "light", "turn_on", eid(hass, "light", "lighting"), brightness=128)
+    assert state(hass, "switch", "screen_sync").state == "off"
+
+
 async def test_an_unconfirmed_family_is_refused_at_the_entity(hass, entry, fake, monkeypatch):
     # The gate itself, independent of today's table: mark a family unconfirmed and the
     # entity must refuse without a byte reaching the soundbar.

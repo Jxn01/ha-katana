@@ -62,7 +62,7 @@ offered.
 
 | Entity | What it does | Gate |
 |---|---|---|
-| **Screen sync** | On by default. While on, colours posted by the PC are shown. Any manual lighting change turns it off; switch it back on to resume. Switching it off does not turn the lighting off. Restored across restarts. | — |
+| **Screen sync** | On by default. While on, colours posted by the PC are shown. A manual lighting choice turns it off — a colour, an effect, or switching the bar on from off; switch it back on to resume. Changing only the **brightness** of a lit bar does not (Global Brightness is the soundbar's own setting and screen-sync colours keep flowing under it). Switching it off does not turn the lighting off. Restored across restarts. | — |
 | **Hold connection** (config) | On: keep the BLE link up and reconnect after drops (backoff 5 s → 5 min). Off: release the link so Creative's app can connect; entities become unavailable. Restored across restarts: setup connects once to read the firmware, then lets go again. | — |
 | **Scout Mode** | Scout Mode on/off | `scout` |
 | **Auto switch to TV/HDMI** (config) | Switch to TV/HDMI automatically when it requests | `auto_switch` |
@@ -169,7 +169,7 @@ Content-Type: application/json
 Send on every colour change, and **at least every 5 s** even when nothing changes, so the 10 s hand-over
 does not fire. On a clean stop simply stop sending; the hand-over turns the lights off.
 
-`accepted: false` is normal, not an error: **any manual lighting change in Home Assistant switches Screen
+`accepted: false` is normal, not an error: **any manual colour, effect or power-on in Home Assistant switches Screen
 sync off**, on purpose, and frames are dropped until it is switched back on. A sender should say so once
 rather than retry (ambience-rgb logs a warning).
 

@@ -163,7 +163,11 @@ class KatanaLight(KatanaEntity, LightEntity):
             families.append("light_power")
         for family in families:
             self._device.check_gate(family)
-        self._stream.manual_override()
+        # A colour, an effect or switching the bar on is a manual lighting choice: Screen sync yields.
+        # Brightness alone is not -- Global Brightness is the soundbar's own setting and screen-sync colours
+        # keep flowing under it (found 2026-10-08: dimming the bar silently stopped Screen sync).
+        if ATTR_EFFECT in kwargs or ATTR_RGB_COLOR in kwargs or not self._device.state.light_on:
+            self._stream.manual_override()
         if ATTR_EFFECT in kwargs:
             await self._device.light_preset(_LABEL_TO_PRESET.get(kwargs[ATTR_EFFECT], kwargs[ATTR_EFFECT]))
         elif ATTR_RGB_COLOR in kwargs:

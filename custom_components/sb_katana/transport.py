@@ -102,15 +102,25 @@ class BleakTransport:
                 "not_in_range",
                 address=self._address,
             )
-        client = await establish_connection(
-            BleakClientWithServiceCache,
-            ble_device,
-            "Katana V2X",
-            disconnected_callback=self._handle_disconnect,
-            ble_device_callback=lambda: (
-                bluetooth.async_ble_device_from_address(self._hass, self._address, connectable=True) or ble_device
-            ),
-        )
+        try:
+            client = await establish_connection(
+                BleakClientWithServiceCache,
+                ble_device,
+                "Katana V2X",
+                disconnected_callback=self._handle_disconnect,
+                ble_device_callback=lambda: (
+                    bluetooth.async_ble_device_from_address(self._hass, self._address, connectable=True) or ble_device
+                ),
+            )
+        except BleakError as err:
+            # Incl. bleak_retry_connector's "no backend with an available connection slot": the soundbar is in
+            # standby (its BLE is off then) or out of range. An expected condition for the reconnect loop, not a
+            # traceback every few minutes all night.
+            raise KatanaCommandError(
+                f"soundbar {self._address} is not reachable (asleep or out of range): {err}",
+                "not_in_range",
+                address=self._address,
+            ) from err
         self._reader.clear()
         try:
             await client.start_notify(NOTIFY_UUID, self._handle_notification)
