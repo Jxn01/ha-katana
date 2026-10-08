@@ -289,9 +289,6 @@
     "several_entries": {
       "message": "Több hangprojektor is be van állítva: a config_entry_id mezővel add meg, melyik."
     },
-    "not_ready": {
-      "message": "A(z) {address} címen lévő hangprojektor nem válaszolt: {error}"
-    },
     "reconnect_failed": {
       "message": "Még nem sikerült újracsatlakozni a hangprojektorhoz (tovább próbálkozik): {error}"
     }

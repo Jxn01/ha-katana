@@ -289,9 +289,6 @@
     "several_entries": {
       "message": "More than one soundbar is set up: say which one with config_entry_id."
     },
-    "not_ready": {
-      "message": "The soundbar at {address} did not answer: {error}"
-    },
     "reconnect_failed": {
       "message": "Could not reconnect to the soundbar yet (it keeps trying): {error}"
     }

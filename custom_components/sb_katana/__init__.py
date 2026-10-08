@@ -17,7 +17,6 @@ from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS, EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import Event, HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_interval
@@ -81,15 +80,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: KatanaConfigEntry) -> bo
         allow_unconfirmed=entry.options.get(CONF_ALLOW_UNCONFIRMED, False),
     )
     try:
-        await device.start()
+        await device.start(keep_trying=True)
     except (KatanaCommandError, BleakError, TimeoutError, OSError) as err:
-        await device.stop()
-        raise ConfigEntryNotReady(
-            f"Katana at {address} did not answer: {err}",
-            translation_domain=DOMAIN,
-            translation_key="not_ready",
-            translation_placeholders={"address": address, "error": str(err)},
-        ) from err
+        # The config flow reached this soundbar once, so silence now most likely means standby -- its BLE is off
+        # then (every night, with the TV or auto standby). Load anyway: entities read unavailable and every write
+        # stays locked until the firmware is read on a real connection; the device's own reconnect loop (gentle
+        # while asleep, immediate on request) brings it back. Raising ConfigEntryNotReady instead hands retrying
+        # to HA, which re-attempts every ~80 s forever -- each an active scan on the adapter other BLE devices
+        # share -- and keeps the screen-sync endpoint down meanwhile (found 2026-10-08).
+        _LOGGER.info(
+            "Katana at %s not reachable at setup (%s); loading anyway, reconnecting in the background", address, err
+        )
 
     issue_id = f"untested_firmware_{entry.entry_id}"
     shown: list[str | None] = [None]
