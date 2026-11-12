@@ -1,6 +1,6 @@
 # Katana V2X — BLE control protocol (as decoded)
 
-Decoded from one capture of Creative's iOS app driving this soundbar on 2026-10-07
+Decoded from one capture of Creative's iOS app driving this soundbar
 (01:53–02:06 local time), firmware **1.3.230619.1820**, plus earlier probes from Garuda.
 Source: `~/Downloads/katana-capture/frames.tsv` (5,342 ATT frames: 2,388 commands, 2,954
 notifications). It is not in git, because its replies carry the unit's serial number and
@@ -296,7 +296,7 @@ White, Wave Green, Wave Ice Blue, Wave Rainbow) are stored verbatim in `captured
 The app's settings gear offers firmware **1.30.260813.1100**. It is never taken, and the
 integration never offers updates.
 
-## Third capture (2026-10-07 12:54–12:58) — EQ, Smart Volume, microphone, device settings
+## Third capture — EQ, Smart Volume, microphone, device settings
 
 Taken with the app's pages and the screenshots in `~/Downloads/katana-capture-3/app-screens/` (not in git).
 Everything below was ACKed with status 00.
