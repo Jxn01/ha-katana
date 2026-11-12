@@ -155,7 +155,7 @@ class KatanaSelectDescription(SelectEntityDescription):
 
 SELECTS: tuple[KatanaSelectDescription, ...] = (
     # Input and sound mode are also on the media player; as selects they show up on
-    # the device page and in dashboards, where the owner looked for them.
+    # the device page and in dashboards, where users look for them.
     KatanaSelectDescription(
         key="input",
         options=[],

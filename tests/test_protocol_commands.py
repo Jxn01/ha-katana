@@ -1,5 +1,5 @@
 """Golden vectors: every builder reproduces a frame Creative's app sent, and every
-parser decodes a reply the soundbar gave, byte for byte (capture of 2026-10-07)."""
+parser decodes a reply the soundbar gave, byte for byte (from the captures)."""
 
 import struct
 
@@ -58,7 +58,7 @@ GOLDEN = [
     (p.light_name_query(), "5a3a023200"),
     (p.light_map_query(), "5a3a022400"),
     (p.solo_colour((0, 0, 255)), "5a3a082b000101ffff0000"),
-    # Second and third captures (2026-10-07 12:38 and 12:54-12:58).
+    # Second and third captures.
     (p.light_brightness(0xFC), "5a3a0227fc"),
     (p.light_brightness_query(), "5a3a0128"),
     (p.mic_priority_query(), "5a2d0101"),
@@ -85,7 +85,7 @@ def test_builder_matches_capture(cmd, expected):
 
 
 def test_solo_prepare_is_ambience_rgbs_sequence():
-    # Proven over BLE on 2026-10-06 with the owner watching the bar turn blue.
+    # Confirmed over BLE on the real soundbar.
     assert [c.frame.hex() for c in p.solo_prepare()] == ["5a3a022501", "5a3a03370001", "5a3a03290003"]
 
 

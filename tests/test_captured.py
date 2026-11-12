@@ -58,7 +58,7 @@ def test_eleven_mic_eq_presets_all_distinct():
 
 
 def test_only_builtin_eq_presets_are_kept():
-    # The owner's own "Test2"/"Asddd" saves carry random identities and must not appear.
+    # User saves ("Test2"/"Asddd") carry random identities and must not appear.
     for seq in captured.EQ_PRESETS.values():
         uuid = bytes.fromhex(next(h for h in seq if h.startswith("5aa8140b")))[7:23]
         assert uuid[:6] == bytes(6) and uuid[6:8] == b"\x10\x00"

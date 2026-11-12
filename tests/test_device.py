@@ -64,7 +64,7 @@ async def test_confirmed_families_match_the_owners_checklist():
     from custom_components.sb_katana.families import FAMILIES
 
     unconfirmed = {key for key, family in FAMILIES.items() if not family.confirmed}
-    # The third capture's nine families were tried from HA and confirmed on 2026-10-08.
+    # The third capture's nine families were confirmed from Home Assistant.
     # Headphones level was reported not working (headphones are not used) and stays gated.
     assert unconfirmed == {"headphones_level"}
 
@@ -292,7 +292,7 @@ async def test_poll_heals_reads_that_failed_at_connect(monkeypatch):
     await device.stop()
 
 
-# --- review findings (2026-10-07) -----------------------------------------------------------
+# --- edge cases -----------------------------------------------------------
 
 
 async def test_failed_read_back_after_reconnect_drops_the_link_and_retries(monkeypatch):

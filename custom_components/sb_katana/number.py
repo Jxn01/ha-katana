@@ -85,7 +85,7 @@ NUMBERS: tuple[KatanaNumberDescription, ...] = (
     _mixer("line_in_level", "mixer", p.CH_LINE_IN),
     _mixer("spdif_in_level", "mixer", p.CH_SPDIF_IN),
     _mixer("microphone_level", "mixer", p.CH_MICROPHONE),
-    # Reported not working (2026-10-07); headphones are not used here, so hidden by default.
+    # Reported not working, so hidden by default.
     _mixer("headphones_level", "headphones_level", p.CH_HEADPHONES, enabled=False),
     _mixer("what_u_hear_level", "what_u_hear", p.CH_WHAT_U_HEAR),
     *(

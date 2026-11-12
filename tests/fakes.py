@@ -1,4 +1,4 @@
-"""A fake soundbar: answers reads with replies taken from the 2026-10-07 capture
+"""A fake soundbar: answers reads with replies taken from the captures
 and acknowledges writes, over the same frame interface the BLE transport uses."""
 
 from __future__ import annotations

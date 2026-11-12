@@ -10,7 +10,7 @@ Three rules from the design live here:
   for its answer before the next. A manual command sequence (a preset load)
   holds the lock for its whole length, so stream frames can never interleave.
 * **Writes pass the gate.** Untested firmware refuses every write; a family the
-  owner has not yet confirmed live refuses unless ``allow_unconfirmed``.
+  not yet confirmed working refuses unless ``allow_unconfirmed``.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ class KatanaCommandError(HomeAssistantError):
 
 
 class KatanaUnconfirmedError(KatanaCommandError):
-    """A write in a family the owner has not confirmed live yet."""
+    """A write in a family not yet confirmed working on a real soundbar."""
 
 
 class KatanaRejectedError(KatanaCommandError):
@@ -127,7 +127,7 @@ class KatanaState:
     def mode_options(self) -> list[str]:
         """Stored modes, plus the live copy's name while it is in use and is not one of them.
 
-        Edited live, the soundbar renames its working copy "Onboard" (seen 2026-10-07),
+        Edited live, the soundbar renames its working copy "Onboard",
         so that name is what is active and has to be selectable as the current option.
         """
         options = list(self.stored_modes())

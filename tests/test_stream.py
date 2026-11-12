@@ -212,7 +212,7 @@ async def test_on_off_from_outside_is_published_at_once(hass, entry, fake):
     assert hass.states.get(light).state == "off"
 
 
-# --- review findings (2026-10-07) -----------------------------------------------------------
+# --- edge cases -----------------------------------------------------------
 
 
 async def test_failed_prepare_is_sent_again_with_the_next_frame(hass, entry, fake, stream, monkeypatch):

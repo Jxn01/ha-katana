@@ -87,7 +87,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: KatanaConfigEntry) -> bo
         # stays locked until the firmware is read on a real connection; the device's own reconnect loop (gentle
         # while asleep, immediate on request) brings it back. Raising ConfigEntryNotReady instead hands retrying
         # to HA, which re-attempts every ~80 s forever -- each an active scan on the adapter other BLE devices
-        # share -- and keeps the screen-sync endpoint down meanwhile (found 2026-10-08).
+        # share -- and keeps the screen-sync endpoint down meanwhile.
         _LOGGER.info(
             "Katana at %s not reachable at setup (%s); loading anyway, reconnecting in the background", address, err
         )

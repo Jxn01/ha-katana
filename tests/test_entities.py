@@ -323,7 +323,7 @@ async def test_diagnostics_redact_identifiers(hass, entry):
     assert diag["families"]["light_solo"]["confirmed"] is True
 
 
-# --- review findings (2026-10-07) -----------------------------------------------------------
+# --- edge cases -----------------------------------------------------------
 
 
 async def test_a_refused_light_command_leaves_screen_sync_alone(hass, entry):

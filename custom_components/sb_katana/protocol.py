@@ -166,7 +166,7 @@ EQ_GAIN_LIMIT = 9.0
 EQ_PREAMP = 0x00
 
 # Microphone priority (0x2D): a priority list of microphone sources. Which list is
-# which label is inferred (2026-10-07 capture: three taps, no readback) -- probable.
+# which label is inferred (three taps in the capture, no readback) -- probable.
 MIC_PRIORITY_OPTIONS: dict[str, tuple[int, ...]] = {
     "Auto": (0x00, 0x01),
     "Headset Microphone": (0x01, 0x00),
@@ -857,7 +857,7 @@ def parse_mic_priority(frame: Frame) -> tuple[int, ...]:
 
 def parse_settings(frame: Frame) -> tuple[bool, bool]:
     """``01 00 00 <flags> <cec>`` -> (energy saving, HDMI CEC standby link). Bit 0x02 of flags is
-    energy saving: it cleared and returned with the app's Off/On (2026-10-07)."""
+    energy saving: it cleared and returned with the app's Off/On."""
     p = _expect(frame, OP_SETTINGS, b"\x01", 5)
     return bool(p[3] & 0x02), bool(p[4])
 

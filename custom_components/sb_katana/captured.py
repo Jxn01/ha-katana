@@ -1,6 +1,6 @@
 """Command sequences captured from Creative's app -- GENERATED, do not edit.
 
-Regenerate with tools/extract_sequences.py. Firmware 1.3.230619.1820, 2026-10-07.
+Regenerate with tools/extract_sequences.py. Firmware 1.3.230619.1820.
 Mic EQ preset labels follow the first capture's tap order (probable).
 """
 

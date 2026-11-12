@@ -4,11 +4,11 @@ Usage: python -I tools/extract_sequences.py <frames.tsv>... > custom_components/
 
 The output is the single source of truth for the preset sequences the
 integration replays. Every frame in it was sent by Creative's own app to this
-soundbar (firmware 1.3.230619.1820) on 2026-10-07 and acknowledged with
+soundbar (firmware 1.3.230619.1820) and acknowledged with
 status 0x00 -- nothing here is synthesised. With several captures, the first
 occurrence of a name wins. EQ presets are kept only when they carry one of the
-app's built-in identities (00000000-0000-1000-8000-0000000000NN): a preset the
-owner saved under a made-up name is not a factory preset.
+app's built-in identities (00000000-0000-1000-8000-0000000000NN): a preset a
+user saved under a made-up name is not a factory preset.
 """
 
 import sys
@@ -22,7 +22,7 @@ def utf16(b: bytes) -> str:
     return b.decode("utf-16-le").rstrip("\x00")
 
 
-# The microphone EQ presets, in the order of the app's list (screenshot, 2026-10-07 12:36).
+# The microphone EQ presets, in the order of the app's list.
 # The first capture tapped them top to bottom, so its eleven 8-band writes map to these in
 # order -- inferred from the tap order, not read back, so the labels are probable.
 MIC_EQ_NAMES = (
@@ -100,7 +100,7 @@ def main(paths: list[str]) -> None:
 
     print('"""Command sequences captured from Creative\'s app -- GENERATED, do not edit.')
     print()
-    print("Regenerate with tools/extract_sequences.py. Firmware 1.3.230619.1820, 2026-10-07.")
+    print("Regenerate with tools/extract_sequences.py. Firmware 1.3.230619.1820.")
     print("Mic EQ preset labels follow the first capture's tap order (probable).")
     print('"""')
     print()
