@@ -69,7 +69,7 @@ The device pushes state frames on changes. In this capture they came after app w
 - `3a:26 / 3a:2a / 3a:2c / 3a:32 / 3a:35` and `a7:13 (03,00)` after lighting writes;
 - `6f` (stream-format) frames while an input syncs.
 
-**The volume knob does push them**: HA followed the knob instantly (owner, 2026-10-07), so `23`/`24`
+**The volume knob does push them**: HA followed the knob instantly, so `23`/`24`
 notifications arrive unsolicited. **So do USB writes**: in the second capture, ambience-rgb's colour writes over
 USB reached the BLE client as unsolicited `3a 2c 00 01 01 …` notifications. The parser must tolerate unknown opcodes.
 
@@ -354,11 +354,11 @@ slots.
 - ~~Main EQ band drag, Lighting brightness, Smart Volume mode names, sound-mode create/rename/delete~~ — all in
   the second and third captures (below).
 - **Preamp drag** — still not captured.
-- **Custom Buttons** and **Super X-Fi** — not wanted by the owner (2026-10-07).
+- **Custom Buttons** and **Super X-Fi** — not implemented.
 
 ## State the capture left behind
 
-These are from the owner's tapping, not from anything the integration does:
+These come from tapping in the app during the capture, not from anything the integration does:
 
 - Microphone level 70% → **82%** (`23 ch05` = 41).
 - Speakers 24% → 22% (`ch00` = 11).

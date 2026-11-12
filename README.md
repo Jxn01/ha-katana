@@ -11,8 +11,7 @@ volume, input/output, sound modes, the Acoustic Engine, EQ, CrystalVoice, Scout 
 
 Every command it can send is a byte sequence that Creative's own app was **captured** sending to this
 soundbar (firmware `1.3.230619.1820`). The decode, with evidence for every opcode, is in
-[`docs/protocol.md`](docs/protocol.md). The design is in
-[`docs/superpowers/specs/`](docs/superpowers/specs/2026-10-07-sb-katana-integration-design.md).
+[`docs/protocol.md`](docs/protocol.md).
 
 > Tested against one unit on firmware **1.3.230619.1820** only. On any other firmware the integration
 > refuses every write and raises a repair issue. **Do not install Creative's firmware updates** if you want
@@ -141,7 +140,7 @@ Downloadable diagnostics redact the address and serial number.
 
 | Option | Default | Range | Meaning |
 |---|---|---|---|
-| **Allow unconfirmed controls** | off | — | Allows writes in families the owner has not yet confirmed live (see [Safety](#safety)). Turn it on to run the live checklist. |
+| **Allow unconfirmed controls** | off | — | Allows writes in command families not yet confirmed working on a real soundbar (see [Safety](#safety)). |
 | **Screen sync rate** | 10 | 1–20 writes/s | The most colours per second sent to the soundbar. The newest colour always wins, and a colour equal to the last one is not re-sent. |
 | **Screen sync hand-over** | 10 s | 10–120 s | With no frame for this long, the lighting is turned off once. Screen sync stays on, so the next frame resumes. The minimum stays above the PC's 5 s keepalive, so a static screen never blinks off and on. |
 
@@ -149,10 +148,8 @@ Changing an option reloads the integration, which briefly reconnects.
 
 ## Screen sync from a PC
 
-The PC side is [ambience-rgb](https://github.com/Jxn01/ambience-rgb)'s `[katana_ha]` sink, live since
-2026-10-07 on both halves of the owner's rig (it replaced ambience-rgb's own USB driver for the soundbar,
-which was then removed). Any other program can do the same. The PC posts colours to an authenticated HTTP
-endpoint:
+The PC side is [ambience-rgb](https://github.com/Jxn01/ambience-rgb)'s `[katana_ha]` sink; any other program can do
+the same. The PC posts colours to an authenticated HTTP endpoint:
 
 ```
 POST /api/sb_katana/stream
@@ -220,13 +217,9 @@ service, **`sb_katana.stream_frame`**, exists for automations and tests:
 - **No dangerous builders.** There is no builder for firmware transfer (`5B`/`0x98`), firmware apply
   (`0x53`) or device-memory access (`0x54`). The soundbar's second GATT service is never touched. Guard
   tests fail the build if any of that appears, and each guard has a positive control.
-- **The confirmation gate.** A command family is enabled by default only once the owner has seen or heard it
-  work over BLE. Since 2026-10-08 that is **every family except Headphones level** (reported not working;
-  headphones are not used with this soundbar, so its entity is also disabled by default). The third capture's
-  families — `light_brightness`, `eq_bands`, `focus_angle`, `energy_saving`, `auto_standby`, `cec_link`,
-  `mic_priority`, `mic_eq_preset`, `display` — were tried from HA by the owner and confirmed on 2026-10-08,
-  including the labels that had been inferred from tap order. **Allow unconfirmed controls** now only matters for
-  Headphones level.
+- **The confirmation gate.** A command family is enabled by default only once it has been seen or heard working on
+  the real soundbar over BLE. That is every family except **Headphones level** (reported not working, so its entity is
+  also disabled by default); **Allow unconfirmed controls** enables it.
 - **State comes only from the soundbar.** A value changes when the soundbar reports it or acknowledges a
   write. A refusal (status ≠ 0) keeps the old value. No answer means the outcome is unknown: the value is
   cleared and re-read. The firmware (and so the write gate) is re-read on every reconnect. Nothing is written
@@ -248,11 +241,9 @@ service, **`sb_katana.stream_frame`**, exists for automations and tests:
 - **Languages:** English and **Hungarian** (`translations/hu.json`): entity names, select options, the
   config and options flows, the repair issue, the service, and every error a user can see. Errors keep an
   English message for logs; the UI shows the translated one.
-- `tests/test_ui.py` fails the build if an entity lacks an icon or a name in either language, a select option
-  lacks a translation, Hungarian and English drift apart (keys or placeholders), a user-visible `raise` has no
-  translation key, or a brand image breaks the brands spec. hassfest checks only the format of `strings.json`,
-  `translations/en.json` and `icons.json` (an icon must start with `mdi:`); whether an MDI name exists, and every
-  other language, are this test's job.
+- `tests/test_ui.py` fails the build if an entity lacks an icon or a name in either language, a select option lacks a
+  translation, the two languages drift apart, a user-visible error has no translation key, or a brand image breaks
+  Home Assistant's brand rules.
 
 ## Development
 
@@ -275,9 +266,7 @@ python3.14 -m venv ~/.local/share/venvs/ha-katana      # never a venv inside the
 | `custom_components/sb_katana/icons.json`, `translations/`, `brand/` | Icons, English + Hungarian text, brand images |
 | `tests/` | Golden vectors, guards, a fake soundbar answering with captured replies, HA-harness tests |
 
-CI runs ruff and pytest on Python 3.14 and hassfest. HACS validation is left out while the repository is
-private, because it reads the repository through the API and cannot see a private one. Add
-`hacs/action` back if the repository is made public.
+CI runs ruff, pytest on Python 3.14, and hassfest.
 
 ## Licence
 
