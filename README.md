@@ -1,5 +1,10 @@
 # Sound Blaster Katana V2X for Home Assistant
 
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-custom%20integration-18BCF2?style=for-the-badge&logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
+[![Bluetooth LE](https://img.shields.io/badge/Bluetooth-LE-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white)](https://www.bluetooth.com/)
+[![Python](https://img.shields.io/badge/python-3.13%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
+
 A custom integration (`sb_katana`) that drives a **Creative Sound Blaster Katana V2X** over **Bluetooth LE**,
 directly from Home Assistant. It replaces Creative's mobile app: lighting (including screen sync from a PC),
 volume, input/output, sound modes, the Acoustic Engine, EQ, CrystalVoice, Scout Mode and the mixer.
